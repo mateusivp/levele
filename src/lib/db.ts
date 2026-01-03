@@ -20,7 +20,12 @@ export async function getProductsFromDb(): Promise<Product[]> {
   
   try {
     const { rows } = await pool.query('SELECT * FROM products ORDER BY id ASC');
-    if (rows.length === 0) return dbProducts;
+    
+    // Se não houver produtos no banco, retornamos os produtos padrão (fallback)
+    if (rows.length === 0) {
+      console.log("[db] Banco vazio, retornando produtos padrão.");
+      return dbProducts;
+    }
     
     return rows.map(row => ({
       id: row.id,
@@ -28,15 +33,15 @@ export async function getProductsFromDb(): Promise<Product[]> {
       description: row.description,
       price: Number(row.price),
       image: row.image,
-      images: typeof row.images === 'string' ? JSON.parse(row.images) : row.images,
+      images: typeof row.images === 'string' ? JSON.parse(row.images) : (row.images || []),
       videoUrl: row.video_url,
       slug: row.slug,
       category: row.category,
       stock: row.stock,
       seo: {
-        title: row.seo_title,
-        description: row.seo_description,
-        keywords: row.name.split(" ").map((k: any) => k.toLowerCase()),
+        title: row.seo_title || "",
+        description: row.seo_description || "",
+        keywords: row.name ? row.name.split(" ").map((k: any) => k.toLowerCase()) : [],
       },
       upsellProductId: row.upsell_product_id,
       orderBumpId: row.order_bump_id,
