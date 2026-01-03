@@ -30,9 +30,9 @@ export async function DELETE(request: Request) {
     
     if (!id) return NextResponse.json({ error: "ID não fornecido" }, { status: 400 });
     
-    // Deletar do MySQL
-    if (process.env.MYSQL_HOST) {
-      await pool.query('DELETE FROM products WHERE id = ?', [id]);
+    // Deletar do Postgres
+    if (pool) {
+      await pool.query('DELETE FROM products WHERE id = $1', [id]);
     }
     
     const index = dbProducts.findIndex(p => p.id === id);

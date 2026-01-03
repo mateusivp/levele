@@ -102,10 +102,12 @@ export async function PUT(request: Request) {
     
     if (!id || !status) return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
 
-    try {
-      await pool.query('UPDATE orders SET status = $1 WHERE id = $2', [status, id]);
-    } catch (error) {
-      console.error("Erro ao atualizar pedido:", error);
+    if (pool) {
+      try {
+        await pool.query('UPDATE orders SET status = $1 WHERE id = $2', [status, id]);
+      } catch (error) {
+        console.error("Erro ao atualizar pedido no Postgres:", error);
+      }
     }
     
     const index = dbOrders.findIndex(o => o.id === id);
