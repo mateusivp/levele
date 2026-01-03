@@ -1,6 +1,8 @@
 import { createPool } from '@vercel/postgres';
 
-// O Vercel Postgres usa variáveis de ambiente automáticas quando conectado ao projeto
-const pool = createPool();
+// Cria o pool apenas se a URL do Postgres estiver presente para evitar erros de build
+const pool = process.env.POSTGRES_URL 
+  ? createPool() 
+  : null;
 
 export default pool;

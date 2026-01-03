@@ -4,6 +4,11 @@ import { dbOrders } from "@/lib/db";
 import pool from "@/lib/db_connection";
 
 export async function GET() {
+  if (!pool) {
+    console.warn("Conexão com Postgres não configurada. Retornando dados em memória.");
+    return NextResponse.json(dbOrders);
+  }
+
   try {
     const { rows } = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
     const orders = rows.map((row: any) => ({
@@ -50,32 +55,36 @@ export async function POST(request: Request) {
       ]
     };
 
-    try {
-      await pool.query(
-        `INSERT INTO orders (id, customer_name, customer_email, customer_phone, customer_cpf, 
-        address_street, address_number, address_complement, address_neighborhood, address_city, 
-        address_state, address_zipcode, total_amount, status, items) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
-        [
-          newOrder.id,
-          newOrder.customer.name,
-          newOrder.customer.email || "",
-          newOrder.customer.phone,
-          newOrder.customer.cpf || "",
-          newOrder.customer.address.street,
-          newOrder.customer.address.number,
-          newOrder.customer.address.complement || "",
-          newOrder.customer.address.neighborhood,
-          newOrder.customer.address.city,
-          newOrder.customer.address.state,
-          newOrder.customer.address.cep,
-          newOrder.total,
-          newOrder.status,
-          JSON.stringify(newOrder.items)
-        ]
-      );
-    } catch (error) {
-      console.error("Erro ao salvar pedido:", error);
+    if (pool) {
+      try {
+        await pool.query(
+          `INSERT INTO orders (id, customer_name, customer_email, customer_phone, customer_cpf, 
+          address_street, address_number, address_complement, address_neighborhood, address_city, 
+          address_state, address_zipcode, total_amount, status, items) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+          [
+            newOrder.id,
+            newOrder.customer.name,
+            newOrder.customer.email || "",
+            newOrder.customer.phone,
+            newOrder.customer.cpf || "",
+            newOrder.customer.address.street,
+            newOrder.customer.address.number,
+            newOrder.customer.address.complement || "",
+            newOrder.customer.address.neighborhood,
+            newOrder.customer.address.city,
+            newOrder.customer.address.state,
+            newOrder.customer.address.cep,
+            newOrder.total,
+            newOrder.status,
+            JSON.stringify(newOrder.items)
+          ]
+        );
+      } catch (error) {
+        console.error("Erro ao salvar pedido no Postgres:", error);
+      }
+    } else {
+      console.warn("Conexão com Postgres não configurada. Salvando apenas em memória.");
     }
     
     dbOrders.push(newOrder);

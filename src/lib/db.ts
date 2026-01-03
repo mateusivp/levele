@@ -13,8 +13,14 @@ const globalForDb = global as unknown as {
 
 // Funções para lidar com Vercel Postgres
 export async function getProductsFromDb(): Promise<Product[]> {
+  if (!pool) {
+    console.warn("Conexão com Postgres não configurada para busca de produtos. Retornando dados em memória.");
+    return dbProducts;
+  }
+  
   try {
-    const { rows } = await pool.query('SELECT * FROM products');
+    const { rows } = await pool.query('SELECT * FROM products ORDER BY id ASC');
+    if (rows.length === 0) return dbProducts;
     
     return rows.map(row => ({
       id: row.id,
@@ -42,6 +48,11 @@ export async function getProductsFromDb(): Promise<Product[]> {
 }
 
 export async function saveProductToDb(product: Product) {
+  if (!pool) {
+    console.warn("Conexão com Postgres não configurada para salvar produto.");
+    return;
+  }
+
   try {
     await pool.query(
       `INSERT INTO products (id, name, description, price, image, images, video_url, slug, category, stock, seo_title, seo_description, upsell_product_id, order_bump_id)

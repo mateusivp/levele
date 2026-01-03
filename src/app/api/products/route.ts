@@ -10,7 +10,12 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const product = await request.json();
-    await saveProductToDb(product);
+    if (pool) {
+      await saveProductToDb(product);
+    } else {
+      console.warn("Conexão com Postgres não configurada. Salvando produto apenas em memória.");
+      dbProducts.push(product);
+    }
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
     console.error("Erro ao salvar produto:", error);
