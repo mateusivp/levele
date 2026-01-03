@@ -1,49 +1,20 @@
 import { NextResponse } from "next/server";
 import { dbProducts, getProductsFromDb, saveProductToDb } from "@/lib/db";
-import pool from "@/lib/mysql";
+import pool from "@/lib/db_connection";
 
 export async function GET() {
   const products = await getProductsFromDb();
-  console.log(`[API] GET /api/products - Retornando ${products.length} produtos`);
   return NextResponse.json(products);
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    console.log(`[API] POST /api/products - Criando produto: ${body.name}`);
-    
-    const baseSlug = body.name.toLowerCase()
-      .replace(/ /g, '-')
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^\w-]/g, '');
-    
-    const products = await getProductsFromDb();
-    let slug = baseSlug;
-    let counter = 1;
-    while (products.some(p => p.slug === slug)) {
-      slug = `${baseSlug}-${counter}`;
-      counter++;
-    }
-
-    const newProduct = {
-      ...body,
-      id: Math.random().toString(36).substr(2, 9),
-      slug: slug,
-    };
-    
-    // Salvar no MySQL se disponível
-    await saveProductToDb(newProduct);
-    
-    // Fallback em memória
-    dbProducts.push(newProduct);
-    
-    console.log(`[API] Produto criado com sucesso: ${slug}`);
-    return NextResponse.json(newProduct, { status: 201 });
+    const product = await request.json();
+    await saveProductToDb(product);
+    return NextResponse.json(product, { status: 201 });
   } catch (error) {
-    console.error("[API] Erro ao criar produto:", error);
-    return NextResponse.json({ error: "Erro ao criar produto" }, { status: 500 });
+    console.error("Erro ao salvar produto:", error);
+    return NextResponse.json({ error: "Erro ao salvar produto" }, { status: 500 });
   }
 }
 
