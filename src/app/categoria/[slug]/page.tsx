@@ -4,27 +4,17 @@ import ProductCard from "@/components/ProductCard";
 import { notFound } from "next/navigation";
 import { constructMetadata } from "@/lib/seo";
 
+import { getProductsFromDb } from "@/lib/db";
+
 interface CategoryPageProps {
   params: Promise<{
     slug: string;
   }>;
 }
 
-async function getProducts(): Promise<Product[]> {
-  const apiUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/products`;
-  try {
-    const res = await fetch(apiUrl, { next: { revalidate: 0 } });
-    if (!res.ok) return [];
-    return await res.json();
-  } catch (error) {
-    console.error("[CategoryPage] Erro:", error);
-    return [];
-  }
-}
-
 export async function generateMetadata({ params }: CategoryPageProps) {
   const { slug } = await params;
-  const products = await getProducts();
+  const products = await getProductsFromDb();
   
   // Encontrar a categoria original baseada no slug
   const categoryName = products.find(p => slugify(p.category) === slug)?.category;
@@ -44,7 +34,7 @@ export async function generateMetadata({ params }: CategoryPageProps) {
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const { slug } = await params;
-  const products = await getProducts();
+  const products = await getProductsFromDb();
   
   // Filtrar produtos pela categoria
   const filteredProducts = products.filter(p => slugify(p.category) === slug);

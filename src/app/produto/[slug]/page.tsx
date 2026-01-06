@@ -9,6 +9,7 @@ import ReviewSection from "@/components/ReviewSection";
 import AnalyticsTracker from "@/components/AnalyticsTracker";
 import ProductVariationsWrapper from "@/components/ProductVariationsWrapper";
 import ProductGallery from "@/components/ProductGallery";
+import { getProductsFromDb } from "@/lib/db";
 
 interface PageProps {
   params: Promise<{
@@ -16,22 +17,9 @@ interface PageProps {
   }>;
 }
 
-// Helper para buscar produtos da API
-async function getProducts(): Promise<Product[]> {
-  const apiUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/products`;
-  try {
-    const res = await fetch(apiUrl, { next: { revalidate: 0 } });
-    if (!res.ok) return [];
-    return await res.json();
-  } catch (error) {
-    console.error("[getProducts] Erro:", error);
-    return [];
-  }
-}
-
-// Helper para buscar o produto da API ou do arquivo estático (fallback)
+// Helper para buscar o produto diretamente do banco ou fallback
 async function getProduct(slug: string): Promise<Product | null> {
-  const products = await getProducts();
+  const products = await getProductsFromDb();
   const product = products.find((p) => p.slug === slug);
   return product || null;
 }
@@ -57,7 +45,7 @@ export default async function ProductPage({ params }: PageProps) {
     notFound();
   }
 
-  const allProducts = await getProducts();
+  const allProducts = await getProductsFromDb();
   const upsellProduct = product?.upsellProductId ? allProducts.find(p => p.id === product.upsellProductId) : null;
 
   // Avaliações do produto

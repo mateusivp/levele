@@ -5,30 +5,10 @@ import { ShoppingCart } from "lucide-react";
 import { Product } from "@/types";
 import ProductCard from "@/components/ProductCard";
 
-async function getProducts(): Promise<Product[]> {
-  const apiUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/products`;
-  try {
-    console.log(`[getProducts] Buscando todos os produtos em ${apiUrl}`);
-    const res = await fetch(apiUrl, {
-      next: { revalidate: 0 }
-    });
-    
-    if (!res.ok) {
-      console.error(`[getProducts] Erro na resposta da API: ${res.status} ${res.statusText}`);
-      return [];
-    }
-
-    const data = await res.json();
-    console.log(`[getProducts] ${data.length} produtos encontrados`);
-    return data;
-  } catch (error) {
-    console.error("[getProducts] Erro ao buscar produtos na Home:", error);
-    return [];
-  }
-}
+import { getProductsFromDb } from "@/lib/db";
 
 export default async function Home() {
-  const products = await getProducts();
+  const products = await getProductsFromDb();
   
   return (
     <div className="container mx-auto px-4 py-12">
