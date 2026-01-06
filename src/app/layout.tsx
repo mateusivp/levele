@@ -2,7 +2,7 @@ import { constructMetadata } from "@/lib/seo";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
-import { ShoppingCart } from "lucide-react";
+import Navbar from "@/components/Navbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,27 +26,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
-        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container mx-auto px-4 flex h-16 items-center justify-between">
-            <Link href="/" className="flex items-center space-x-2">
-              <span className="text-2xl font-bold text-primary">Levele</span>
-            </Link>
-            <nav className="flex items-center space-x-6">
-              <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
-                Produtos
-              </Link>
-              <Link href="/categorias" className="text-sm font-medium hover:text-primary transition-colors">
-                Categorias
-              </Link>
-              <Link href="/finalizar" className="relative">
-                <ShoppingCart className="h-6 w-6" />
-                <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                  0
-                </span>
-              </Link>
-            </nav>
-          </div>
-        </header>
+        <Navbar />
 
         <main className="flex-1">
           {children}
