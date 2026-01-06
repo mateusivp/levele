@@ -21,13 +21,7 @@ export async function getProductsFromDb(): Promise<Product[]> {
   try {
     const { rows } = await pool.query('SELECT * FROM products ORDER BY id ASC');
     
-    // Se não houver produtos no banco, retornamos os produtos padrão (fallback)
-    if (rows.length === 0) {
-      console.log("[db] Banco vazio, retornando produtos padrão.");
-      return dbProducts;
-    }
-    
-    return rows.map(row => ({
+    const dbRows = rows.map(row => ({
       id: row.id,
       name: row.name,
       description: row.description,
@@ -46,6 +40,15 @@ export async function getProductsFromDb(): Promise<Product[]> {
       upsellProductId: row.upsell_product_id,
       orderBumpId: row.order_bump_id,
     }));
+
+    // Retornamos os produtos do banco combinados com os produtos padrão que não estão no banco
+    const dbProductIds = new Set(dbRows.map(p => p.id));
+    const combinedProducts = [
+      ...dbRows,
+      ...dbProducts.filter(p => !dbProductIds.has(p.id))
+    ];
+    
+    return combinedProducts;
   } catch (error) {
     console.error("Erro ao buscar produtos do Postgres:", error);
     return dbProducts;

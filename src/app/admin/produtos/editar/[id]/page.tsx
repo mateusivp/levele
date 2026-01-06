@@ -426,35 +426,51 @@ export default function EditProductPage() {
               </div>
 
               {/* Imagens Adicionais */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Imagens Adicionais (Galeria)</label>
-                <div className="grid grid-cols-3 gap-4">
-                  {[0, 1, 2].map((idx) => (
-                    <div key={idx} className="space-y-2">
-                      <div className="aspect-square relative rounded-lg border overflow-hidden bg-muted/50">
-                        {watch(`images.${idx}`) ? (
-                          <img src={watch(`images.${idx}`)} alt={`Galeria ${idx + 1}`} className="w-full h-full object-cover" />
-                        ) : (
-                          <label className="flex flex-col items-center justify-center h-full cursor-pointer hover:bg-muted transition-colors">
-                            <Upload className="h-4 w-4 text-muted-foreground mb-1" />
-                            <span className="text-[10px] text-muted-foreground">Upload</span>
-                            <input 
-                              type="file" 
-                              className="hidden" 
-                              accept="image/*" 
-                              onChange={(e) => handleImageUpload(e, "images", idx)} 
-                            />
-                          </label>
-                        )}
-                      </div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <label className="block text-sm font-medium">Imagens Adicionais (Galeria)</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentImages = watch("images") || [];
+                      setValue("images", [...currentImages, ""]);
+                    }}
+                    className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold hover:bg-primary/20"
+                  >
+                    + Add Imagem
+                  </button>
+                </div>
+                
+                {(watch("images") || []).map((img, idx) => (
+                  <div key={idx} className="space-y-2 p-3 bg-muted/30 rounded-lg border">
+                    <div className="flex gap-2">
                       <input
                         {...register(`images.${idx}`)}
-                        className="w-full h-8 px-2 text-[10px] rounded border bg-background outline-none"
-                        placeholder="URL ou Upload acima"
+                        className="flex-1 h-9 px-3 text-sm rounded-md border bg-background focus:ring-2 focus:ring-primary outline-none"
+                        placeholder="URL da imagem adicional"
                       />
+                      <label className="h-9 px-3 bg-white border rounded-md flex items-center justify-center cursor-pointer hover:bg-muted transition-colors">
+                        <Upload className="h-4 w-4 text-muted-foreground" />
+                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, "images", idx)} />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentImages = watch("images") || [];
+                          setValue("images", currentImages.filter((_, i) => i !== idx));
+                        }}
+                        className="h-9 px-3 text-destructive hover:bg-destructive/10 rounded-md"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
-                  ))}
-                </div>
+                    {watch(`images.${idx}`) && (
+                      <div className="h-20 w-20 rounded border overflow-hidden bg-white">
+                        <img src={watch(`images.${idx}`)} alt={`Preview ${idx}`} className="w-full h-full object-contain" />
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
 
               {/* Vídeo */}

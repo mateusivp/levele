@@ -40,6 +40,8 @@ const productSchema = z.object({
   }).optional(),
 });
 
+import { slugify } from "@/lib/utils";
+
 type ProductFormData = z.infer<typeof productSchema>;
 
 export default function NewProductPage() {
@@ -59,6 +61,7 @@ export default function NewProductPage() {
     defaultValues: {
       stock: 10,
       variations: [],
+      images: ["", "", ""], // Inicia com 3 campos de imagem adicional por padrão
     }
   });
 
@@ -116,9 +119,13 @@ export default function NewProductPage() {
     setIsSubmitting(true);
     try {
       const category = data.category === "Outra" ? data.customCategory || "Geral" : data.category;
+      const productId = Math.random().toString(36).substring(2, 9);
+      const productSlug = slugify(data.name);
       
       const productData = {
+        id: productId,
         name: data.name,
+        slug: productSlug,
         description: data.description,
         price: data.price,
         image: data.image,
@@ -145,7 +152,7 @@ export default function NewProductPage() {
 
       if (res.ok) {
         console.log(`[Novo Produto] Produto "${data.name}" cadastrado com sucesso.`);
-        alert("Produto cadastrado com sucesso! (Simulação)");
+        alert("Produto cadastrado com sucesso!");
         router.push("/admin");
       }
     } catch (error) {
@@ -439,7 +446,7 @@ export default function NewProductPage() {
               
               {/* Imagem Principal */}
               <div>
-                <label className="block text-sm font-medium mb-1">Imagem Principal (Thumbnail)</label>
+                <label className="block text-sm font-medium mb-1">Imagem Principal (Upload ou URL)</label>
                 <div className="flex gap-2 mb-2">
                   <input
                     {...register("image")}
@@ -451,11 +458,15 @@ export default function NewProductPage() {
                     <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, "image")} />
                   </label>
                 </div>
-                {imageUrl && (
-                  <div className="aspect-video rounded-lg border overflow-hidden bg-muted/50 mb-4">
-                    <img src={imageUrl} alt="Preview" className="w-full h-full object-contain" />
-                  </div>
-                )}
+                <div className="aspect-video relative rounded-lg border overflow-hidden bg-muted/50 mb-4">
+                  {watch("image") ? (
+                    <img src={watch("image")} alt="Principal" className="w-full h-full object-contain" />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground text-xs">
+                      Sem imagem principal
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Imagens Adicionais */}
@@ -464,23 +475,21 @@ export default function NewProductPage() {
                   <label className="block text-sm font-medium">Imagens Adicionais (Galeria)</label>
                   <button
                     type="button"
-                    onClick={addImageField}
+                    onClick={() => {
+                      const currentImages = watch("images") || [];
+                      setValue("images", [...currentImages, ""]);
+                    }}
                     className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold hover:bg-primary/20"
                   >
                     + Add Imagem
                   </button>
                 </div>
                 
-                {additionalImages.map((img, idx) => (
+                {(watch("images") || []).map((img, idx) => (
                   <div key={idx} className="space-y-2 p-3 bg-muted/30 rounded-lg border">
                     <div className="flex gap-2">
                       <input
-                        value={img}
-                        onChange={(e) => {
-                          const newImgs = [...additionalImages];
-                          newImgs[idx] = e.target.value;
-                          setValue("images", newImgs);
-                        }}
+                        {...register(`images.${idx}`)}
                         className="flex-1 h-9 px-3 text-sm rounded-md border bg-background focus:ring-2 focus:ring-primary outline-none"
                         placeholder="URL da imagem adicional"
                       />
@@ -490,15 +499,18 @@ export default function NewProductPage() {
                       </label>
                       <button
                         type="button"
-                        onClick={() => removeImageField(idx)}
+                        onClick={() => {
+                          const currentImages = watch("images") || [];
+                          setValue("images", currentImages.filter((_, i) => i !== idx));
+                        }}
                         className="h-9 px-3 text-destructive hover:bg-destructive/10 rounded-md"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                    {img && (
+                    {watch(`images.${idx}`) && (
                       <div className="h-20 w-20 rounded border overflow-hidden bg-white">
-                        <img src={img} alt={`Preview ${idx}`} className="w-full h-full object-contain" />
+                        <img src={watch(`images.${idx}`)} alt={`Preview ${idx}`} className="w-full h-full object-contain" />
                       </div>
                     )}
                   </div>
@@ -511,9 +523,12 @@ export default function NewProductPage() {
                 <input
                   {...register("videoUrl")}
                   className="w-full h-11 px-4 rounded-lg border bg-background focus:ring-2 focus:ring-primary outline-none"
-                  placeholder="https://youtube.com/watch?v=..."
+                  placeholder="https://www.youtube.com/watch?v=..."
                 />
-                <p className="text-[10px] text-muted-foreground mt-1">O vídeo será exibido na descrição do produto.</p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  O vídeo será exibido na descrição do produto.
+                </p>
+                {errors.videoUrl && <p className="text-destructive text-xs mt-1">{errors.videoUrl.message}</p>}
               </div>
             </div>
 

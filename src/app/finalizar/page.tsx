@@ -26,6 +26,28 @@ const checkoutSchema = z.object({
 
 type CheckoutFormData = z.infer<typeof checkoutSchema>;
 
+// Função para formatar o telefone
+const formatPhone = (value: string) => {
+  if (!value) return value;
+  // Remove tudo que não é dígito
+  const digits = value.replace(/\D/g, "");
+  
+  // Limita a 11 dígitos (formato celular com 9 na frente)
+  const phoneNumber = digits.slice(0, 11);
+  const phoneNumberLength = phoneNumber.length;
+  
+  if (phoneNumberLength <= 2) {
+    return phoneNumber;
+  }
+  if (phoneNumberLength <= 6) {
+    return `(${phoneNumber.slice(0, 2)}) ${phoneNumber.slice(2)}`;
+  }
+  if (phoneNumberLength <= 10) {
+    return `(${phoneNumber.slice(0, 2)}) ${phoneNumber.slice(2, 6)}-${phoneNumber.slice(6)}`;
+  }
+  return `(${phoneNumber.slice(0, 2)}) ${phoneNumber.slice(2, 7)}-${phoneNumber.slice(7)}`;
+};
+
 // Função para gerar as datas de entrega disponíveis
 function getAvailableDeliveryDates() {
   const dates: { value: string; label: string }[] = [];
@@ -190,8 +212,34 @@ function CheckoutContent() {
   });
 
   const cep = watch("cep");
-  const name = watch("name");
   const phone = watch("phone");
+
+  // Formata telefone em tempo real
+  useEffect(() => {
+    if (phone) {
+      const formatted = formatPhone(phone);
+      if (formatted !== phone) {
+        setValue("phone", formatted);
+      }
+    }
+  }, [phone, setValue]);
+
+  // Formata CEP em tempo real
+  useEffect(() => {
+    if (cep) {
+      const formatted = cep.replace(/\D/g, "").slice(0, 8);
+      if (formatted.length > 5) {
+        const withDash = `${formatted.slice(0, 5)}-${formatted.slice(5)}`;
+        if (withDash !== cep) {
+          setValue("cep", withDash);
+        }
+      } else if (formatted !== cep) {
+        setValue("cep", formatted);
+      }
+    }
+  }, [cep, setValue]);
+
+  const name = watch("name");
 
   // Captura de carrinho abandonado
   useEffect(() => {
@@ -519,6 +567,7 @@ function CheckoutContent() {
                 <label className="block text-sm font-medium mb-1">WhatsApp / Telefone</label>
                 <input
                   {...register("phone")}
+                  type="tel"
                   className="w-full h-12 px-4 rounded-lg border bg-background focus:ring-2 focus:ring-primary outline-none transition-all"
                   placeholder="(11) 99999-9999"
                 />
