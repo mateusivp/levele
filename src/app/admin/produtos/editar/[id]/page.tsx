@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Save, Image as ImageIcon, Eye, Upload } from "lucide-react";
 import RichTextEditor from "@/components/RichTextEditor";
+import { slugify, compressImage } from "@/lib/utils";
 
 const productSchema = z.object({
   name: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
@@ -113,16 +114,23 @@ export default function EditProductPage() {
     fetchProductAndList();
   }, [id, reset, router]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, fieldName: "image" | "images", index?: number) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: "image" | "images", index?: number) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        console.log(`[Upload] Imagem original: ${(base64.length / 1024).toFixed(2)} KB`);
+        
+        // Comprimir imagem
+        const compressed = await compressImage(base64);
+        console.log(`[Upload] Imagem comprimida: ${(compressed.length / 1024).toFixed(2)} KB`);
+
         if (fieldName === "image") {
-          setValue("image", reader.result as string);
+          setValue("image", compressed);
         } else if (fieldName === "images" && index !== undefined) {
           const currentImages = [...(watch("images") || [])];
-          currentImages[index] = reader.result as string;
+          currentImages[index] = compressed;
           setValue("images", currentImages);
         }
       };
