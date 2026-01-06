@@ -296,13 +296,6 @@ function CheckoutContent() {
 
   const [lastOrderData, setLastOrderData] = useState<any>(null);
 
-  const handleSendWhatsApp = (orderData: any, product: Product) => {
-    if (!orderData || !orderData.customer) return;
-    const phone = orderData.customer.phone.replace(/\D/g, '');
-    const message = `Olá ${orderData.customer.name.split(' ')[0]}, seu pedido do ${product.name} foi confirmado! Entraremos em contato para agendar a entrega.`;
-    window.open(`https://api.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(message)}`, '_blank');
-  };
-
   const onSubmit = async (data: CheckoutFormData) => {
     try {
       console.log(`[Checkout] Iniciando envio do pedido para ${product?.name}`);
@@ -378,7 +371,6 @@ function CheckoutContent() {
           }
         }
         
-        if (product) handleSendWhatsApp(orderRes, product);
         }
   
         setIsSuccess(true);
@@ -412,7 +404,6 @@ function CheckoutContent() {
         setLastOrderData(updatedOrder);
         setShowPostPurchaseUpsell(false);
         setIsSuccess(true);
-        if (product) handleSendWhatsApp(updatedOrder, product);
       }
     } catch (error) {
       console.error("Erro ao adicionar upsell:", error);
@@ -504,7 +495,6 @@ function CheckoutContent() {
                 onClick={() => { 
                   setShowPostPurchaseUpsell(false); 
                   setIsSuccess(true); 
-                  if (lastOrderData && product) handleSendWhatsApp(lastOrderData, product);
                 }}
                 className="w-full py-4 text-muted-foreground hover:text-foreground transition-colors font-medium text-sm underline underline-offset-4"
               >

@@ -35,6 +35,9 @@ export default function RootLayout({
               <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
                 Produtos
               </Link>
+              <Link href="/categorias" className="text-sm font-medium hover:text-primary transition-colors">
+                Categorias
+              </Link>
               <Link href="/finalizar" className="relative">
                 <ShoppingCart className="h-6 w-6" />
                 <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">
