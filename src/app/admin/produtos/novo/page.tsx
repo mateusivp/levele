@@ -177,7 +177,6 @@ export default function NewProductPage() {
         let errorData = {};
         try { errorData = JSON.parse(errorText); } catch (e) {}
         alert(`Erro ao salvar produto: ${(errorData as any).error || res.statusText || "Erro desconhecido"}`);
-        setIsSubmitting(false);
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -187,6 +186,7 @@ export default function NewProductPage() {
         console.error("[Novo Produto] Erro crítico ao cadastrar produto:", error);
         alert(`Erro de rede ou no servidor: ${error.message}`);
       }
+    } finally {
       setIsSubmitting(false);
     }
   };

@@ -189,7 +189,6 @@ export default function EditProductPage() {
         let errorData = {};
         try { errorData = JSON.parse(errorText); } catch (e) {}
         alert(`Erro ao atualizar produto: ${(errorData as any).error || res.statusText || "Erro desconhecido"}`);
-        setIsSubmitting(false);
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -199,6 +198,7 @@ export default function EditProductPage() {
         console.error("[Editar Produto] Erro crítico ao atualizar produto:", error);
         alert(`Erro de rede ou no servidor: ${error.message}`);
       }
+    } finally {
       setIsSubmitting(false);
     }
   };

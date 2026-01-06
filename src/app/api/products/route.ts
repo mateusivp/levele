@@ -19,10 +19,21 @@ export async function POST(request: Request) {
       dbProducts.push(product);
     }
 
+    // Atualizar no banco de dados com timeout de 10 segundos
     if (pool) {
       console.log(`[API] Persistindo produto ${product.name} no banco de dados...`);
-      await saveProductToDb(product);
-      console.log(`[API] Produto ${product.name} salvo com sucesso no banco.`);
+      try {
+        const dbPromise = saveProductToDb(product);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Timeout no banco de dados")), 10000)
+        );
+        await Promise.race([dbPromise, timeoutPromise]);
+        console.log(`[API] Produto ${product.name} salvo com sucesso no banco.`);
+      } catch (dbError: any) {
+        console.error(`[API] Falha na persistência DB (mas salvo em memória):`, dbError.message);
+        // Não retornamos erro 500 aqui para não travar o frontend, 
+        // já que salvamos em memória com sucesso acima.
+      }
     } else {
       console.warn("Conexão com Postgres não configurada. Salvando produto apenas em memória.");
     }
@@ -77,11 +88,19 @@ export async function PUT(request: Request) {
       dbProducts[index] = updatedProduct;
     }
 
-    // Atualizar no banco de dados
+    // Atualizar no banco de dados com timeout de 10 segundos
     if (pool) {
       console.log(`[API] Persistindo atualização do produto ${updatedProduct.name} no banco...`);
-      await saveProductToDb(updatedProduct);
-      console.log(`[API] Produto ${updatedProduct.name} atualizado com sucesso no banco.`);
+      try {
+        const dbPromise = saveProductToDb(updatedProduct);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Timeout no banco de dados")), 10000)
+        );
+        await Promise.race([dbPromise, timeoutPromise]);
+        console.log(`[API] Produto ${updatedProduct.name} atualizado com sucesso no banco.`);
+      } catch (dbError: any) {
+        console.error(`[API] Falha na persistência DB ao atualizar (mas salvo em memória):`, dbError.message);
+      }
     }
 
     return NextResponse.json(updatedProduct);
