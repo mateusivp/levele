@@ -8,14 +8,14 @@ CREATE TABLE IF NOT EXISTS products (
     price DECIMAL(10, 2) NOT NULL,
     image TEXT,
     images JSON,
-    videoUrl TEXT,
+    video_url TEXT,
     slug VARCHAR(255) UNIQUE,
     category VARCHAR(100),
-    stock INT DEFAULT 0,
+    active BOOLEAN DEFAULT TRUE,
     seo_title VARCHAR(255),
     seo_description TEXT,
-    upsellProductId VARCHAR(255),
-    orderBumpId VARCHAR(255),
+    upsell_product_id VARCHAR(255),
+    order_bump_id VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );

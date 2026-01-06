@@ -55,11 +55,6 @@ export default function ProductVariations({ product, selectedVariationId, onSele
                   <p className={`font-bold transition-colors ${isSelected ? "text-primary" : "text-foreground"}`}>
                     {variation.name}
                   </p>
-                  {variation.stock <= 5 && variation.stock > 0 && (
-                    <p className="text-[10px] text-orange-600 font-medium">
-                      Restam apenas {variation.stock} unidades!
-                    </p>
-                  )}
                 </div>
               </div>
 

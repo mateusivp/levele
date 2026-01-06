@@ -31,7 +31,7 @@ export async function getProductsFromDb(): Promise<Product[]> {
       videoUrl: row.video_url,
       slug: row.slug,
       category: row.category,
-      stock: row.stock,
+      active: row.active === 1 || row.active === true,
       seo: {
         title: row.seo_title || "",
         description: row.seo_description || "",
@@ -63,12 +63,12 @@ export async function saveProductToDb(product: Product) {
 
   try {
     await pool.query(
-      `INSERT INTO products (id, name, description, price, image, images, video_url, slug, category, stock, seo_title, seo_description, upsell_product_id, order_bump_id)
+      `INSERT INTO products (id, name, description, price, image, images, video_url, slug, category, active, seo_title, seo_description, upsell_product_id, order_bump_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (id) DO UPDATE SET 
        name=EXCLUDED.name, description=EXCLUDED.description, price=EXCLUDED.price, image=EXCLUDED.image, 
        images=EXCLUDED.images, video_url=EXCLUDED.video_url, slug=EXCLUDED.slug, category=EXCLUDED.category, 
-       stock=EXCLUDED.stock, seo_title=EXCLUDED.seo_title, seo_description=EXCLUDED.seo_description,
+       active=EXCLUDED.active, seo_title=EXCLUDED.seo_title, seo_description=EXCLUDED.seo_description,
        upsell_product_id=EXCLUDED.upsell_product_id, order_bump_id=EXCLUDED.order_bump_id`,
       [
         product.id,
@@ -80,7 +80,7 @@ export async function saveProductToDb(product: Product) {
         product.videoUrl,
         product.slug,
         product.category,
-        product.stock,
+        product.active,
         product.seo.title,
         product.seo.description,
         product.upsellProductId,
@@ -97,6 +97,7 @@ export const dbAbandonedCarts = globalForDb.dbAbandonedCarts ?? [];
 export const dbVisits = globalForDb.dbVisits ?? 0;
 export const dbProducts: Product[] = globalForDb.dbProducts ?? products.map((product, pIdx) => ({
   ...product,
+  active: true,
   reviews: [
     {
       id: `${pIdx + 1}-1`,

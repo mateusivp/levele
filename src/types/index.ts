@@ -8,7 +8,7 @@ export interface Product {
   videoUrl?: string; // Link para vídeo (YouTube, Vimeo, etc)
   slug: string;
   category: string;
-  stock: number;
+  active: boolean;
   seo: {
     title: string;
     description: string;
@@ -37,7 +37,6 @@ export interface Product {
     id: string;
     name: string; // Ex: "1 Unidade", "Kit 3 Unidades (Pague 2 Leve 3)"
     price: number;
-    stock: number;
     image?: string;
   }[];
 }

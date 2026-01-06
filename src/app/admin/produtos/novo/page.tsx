@@ -19,7 +19,7 @@ const productSchema = z.object({
   videoUrl: z.string().optional(),
   category: z.string().min(2, "Categoria é obrigatória"),
   customCategory: z.string().optional(),
-  stock: z.coerce.number().min(0, "Estoque não pode ser negativo"),
+  active: z.boolean().default(true),
   seoTitle: z.string().min(5, "Título SEO deve ser relevante"),
   seoDescription: z.string().min(10, "Descrição SEO deve ser detalhada"),
   upsellProductId: z.string().optional(),
@@ -28,7 +28,6 @@ const productSchema = z.object({
     id: z.string(),
     name: z.string().min(1, "Nome da variação é obrigatório"),
     price: z.coerce.number().min(0.01, "Preço deve ser maior que zero"),
-    stock: z.coerce.number().min(0, "Estoque não pode ser negativo"),
   })).optional(),
   postPurchaseUpsell: z.object({
     productId: z.string().optional(),
@@ -59,7 +58,7 @@ export default function NewProductPage() {
   } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema) as any,
     defaultValues: {
-      stock: 10,
+      active: true,
       variations: [],
       images: ["", "", ""], // Inicia com 3 campos de imagem adicional por padrão
     }
@@ -132,7 +131,7 @@ export default function NewProductPage() {
         images: data.images?.filter(img => img.length > 0),
         videoUrl: data.videoUrl,
         category: category,
-        stock: data.stock,
+        active: data.active,
         seo: {
           title: data.seoTitle,
           description: data.seoDescription,
@@ -224,11 +223,29 @@ export default function NewProductPage() {
           </div>
 
           <div className="space-y-6">
-            {/* Preço e Estoque */}
+            {/* Status e Preço */}
             <div className="bg-card p-6 rounded-xl border space-y-4">
-              <h2 className="text-xl font-bold border-b pb-2">Vendas</h2>
+              <h2 className="text-xl font-bold border-b pb-2">Configurações de Venda</h2>
+              
+              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
+                <div>
+                  <label className="block text-sm font-bold">Status do Produto</label>
+                  <p className="text-[10px] text-muted-foreground">Define se o produto está visível na loja.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold ${watch("active") ? 'text-green-600' : 'text-destructive'}`}>
+                    {watch("active") ? 'ATIVO' : 'DESATIVADO'}
+                  </span>
+                  <input
+                    type="checkbox"
+                    {...register("active")}
+                    className="w-5 h-5 accent-primary cursor-pointer"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-sm font-medium mb-1">Preço (R$)</label>
+                <label className="block text-sm font-medium mb-1">Preço Principal (R$)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -236,15 +253,6 @@ export default function NewProductPage() {
                   className="w-full h-11 px-4 rounded-lg border bg-background focus:ring-2 focus:ring-primary outline-none"
                 />
                 {errors.price && <p className="text-destructive text-xs mt-1">{errors.price?.message?.toString()}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Estoque Inicial</label>
-                <input
-                  type="number"
-                  {...register("stock", { valueAsNumber: true })}
-                  className="w-full h-11 px-4 rounded-lg border bg-background focus:ring-2 focus:ring-primary outline-none"
-                />
-                {errors.stock && <p className="text-destructive text-xs mt-1">{errors.stock?.message?.toString()}</p>}
               </div>
 
               <div>
@@ -282,7 +290,7 @@ export default function NewProductPage() {
                 <h2 className="text-xl font-bold">Variações e Kits</h2>
                 <button
                   type="button"
-                  onClick={() => append({ id: Math.random().toString(36).substring(2, 9), name: "", price: 0, stock: 10 })}
+                  onClick={() => append({ id: Math.random().toString(36).substring(2, 9), name: "", price: 0 })}
                   className="text-xs bg-primary/10 text-primary px-3 py-1.5 rounded-lg font-bold hover:bg-primary/20 transition-colors flex items-center gap-1"
                 >
                   <Plus className="h-3 w-3" /> Add Kit/Variação
@@ -310,24 +318,14 @@ export default function NewProductPage() {
                           className="w-full h-9 px-3 text-sm rounded-md border bg-background focus:ring-2 focus:ring-primary outline-none"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-[10px] font-bold uppercase text-muted-foreground mb-1 block">Preço (R$)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            {...register(`variations.${index}.price` as const, { valueAsNumber: true })}
-                            className="w-full h-9 px-3 text-sm rounded-md border bg-background focus:ring-2 focus:ring-primary outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold uppercase text-muted-foreground mb-1 block">Estoque</label>
-                          <input
-                            type="number"
-                            {...register(`variations.${index}.stock` as const, { valueAsNumber: true })}
-                            className="w-full h-9 px-3 text-sm rounded-md border bg-background focus:ring-2 focus:ring-primary outline-none"
-                          />
-                        </div>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase text-muted-foreground mb-1 block">Preço (R$)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          {...register(`variations.${index}.price` as const, { valueAsNumber: true })}
+                          className="w-full h-9 px-3 text-sm rounded-md border bg-background focus:ring-2 focus:ring-primary outline-none"
+                        />
                       </div>
                     </div>
                   </div>

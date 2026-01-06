@@ -14,8 +14,8 @@ function AdminDashboardContent() {
   const initialTab = searchParams.get('tab') as 'dashboard' | 'produtos' | 'pedidos' | 'cupons' | 'avaliacoes' || 'dashboard';
   
   const [products, setProducts] = useState<Product[]>([]);
-  const [variations, setVariations] = useState<{ id: string; name: string; price: number; stock: number; image?: string }[]>([]);
-  const [newVariation, setNewVariation] = useState({ name: '', price: 0, stock: 0 });
+  const [variations, setVariations] = useState<{ id: string; name: string; price: number; image?: string }[]>([]);
+  const [newVariation, setNewVariation] = useState({ name: '', price: 0 });
   const [orders, setOrders] = useState<Order[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [abandonedCarts, setAbandonedCarts] = useState<any[]>([]);
@@ -1220,7 +1220,7 @@ function AdminDashboardContent() {
                     <th className="p-4 font-bold text-sm uppercase tracking-wider">Produto</th>
                     <th className="p-4 font-bold text-sm uppercase tracking-wider">Categoria</th>
                     <th className="p-4 font-bold text-sm uppercase tracking-wider">Preço</th>
-                    <th className="p-4 font-bold text-sm uppercase tracking-wider">Estoque</th>
+                    <th className="p-4 font-bold text-sm uppercase tracking-wider">Status</th>
                     <th className="p-4 font-bold text-sm uppercase tracking-wider text-right">Ações</th>
                   </tr>
                 </thead>
@@ -1248,7 +1248,11 @@ function AdminDashboardContent() {
                           <span className="text-xs font-semibold bg-muted px-2 py-1 rounded">{product.category}</span>
                         </td>
                         <td className="p-4 font-bold text-primary">{formatPrice(product.price)}</td>
-                        <td className="p-4 text-sm">{product.stock} unidades</td>
+                        <td className="p-4">
+                          <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${product.active ? 'bg-green-100 text-green-700' : 'bg-destructive/10 text-destructive'}`}>
+                            {product.active ? 'ATIVO' : 'DESATIVADO'}
+                          </span>
+                        </td>
                         <td className="p-4 text-right">
                           <div className="flex justify-end gap-2">
                             <button 
