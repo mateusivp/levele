@@ -67,6 +67,85 @@ export async function getProductsFromDb(): Promise<Product[]> {
   }
 }
 
+export async function getProductBySlug(slug: string): Promise<Product | null> {
+  if (!pool) {
+    return dbProducts.find(p => p.slug === slug) || null;
+  }
+
+  try {
+    const { rows } = await pool.query('SELECT * FROM products WHERE slug = $1', [slug]);
+    if (rows.length === 0) {
+      // Tentar na memória se não achar no banco (pode ser um produto estático)
+      return dbProducts.find(p => p.slug === slug) || null;
+    }
+
+    const row = rows[0];
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      price: Number(row.price),
+      image: row.image,
+      images: typeof row.images === 'string' ? JSON.parse(row.images) : (row.images || []),
+      videoUrl: row.video_url,
+      slug: row.slug,
+      category: row.category,
+      active: row.active === 1 || row.active === true,
+      seo: {
+        title: row.seo_title || "",
+        description: row.seo_description || "",
+        keywords: row.name ? row.name.split(" ").map((k: any) => k.toLowerCase()) : [],
+      },
+      upsellProductId: row.upsell_product_id,
+      orderBumpId: row.order_bump_id,
+      variations: typeof row.variations === 'string' ? JSON.parse(row.variations) : (row.variations || []),
+      postPurchaseUpsell: typeof row.post_purchase_upsell === 'string' ? JSON.parse(row.post_purchase_upsell) : (row.post_purchase_upsell || null),
+    };
+  } catch (error) {
+    console.error("Erro ao buscar produto por slug no Postgres:", error);
+    return dbProducts.find(p => p.slug === slug) || null;
+  }
+}
+
+export async function getProductById(id: string): Promise<Product | null> {
+  if (!pool) {
+    return dbProducts.find(p => p.id === id) || null;
+  }
+
+  try {
+    const { rows } = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
+    if (rows.length === 0) {
+      return dbProducts.find(p => p.id === id) || null;
+    }
+
+    const row = rows[0];
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      price: Number(row.price),
+      image: row.image,
+      images: typeof row.images === 'string' ? JSON.parse(row.images) : (row.images || []),
+      videoUrl: row.video_url,
+      slug: row.slug,
+      category: row.category,
+      active: row.active === 1 || row.active === true,
+      seo: {
+        title: row.seo_title || "",
+        description: row.seo_description || "",
+        keywords: row.name ? row.name.split(" ").map((k: any) => k.toLowerCase()) : [],
+      },
+      upsellProductId: row.upsell_product_id,
+      orderBumpId: row.order_bump_id,
+      variations: typeof row.variations === 'string' ? JSON.parse(row.variations) : (row.variations || []),
+      postPurchaseUpsell: typeof row.post_purchase_upsell === 'string' ? JSON.parse(row.post_purchase_upsell) : (row.post_purchase_upsell || null),
+    };
+  } catch (error) {
+    console.error("Erro ao buscar produto por ID no Postgres:", error);
+    return dbProducts.find(p => p.id === id) || null;
+  }
+}
+
 export async function saveProductToDb(product: Product) {
   if (!pool) {
     console.warn("Conexão com Postgres não configurada para salvar produto.");

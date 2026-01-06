@@ -66,10 +66,15 @@ export default function EditProductPage() {
   useEffect(() => {
     const fetchProductAndList = async () => {
       try {
-        const res = await fetch("/api/products");
-        const products = await res.json();
+        // Buscar apenas o produto específico para editar
+        const productRes = await fetch(`/api/products/${id}`, { cache: 'no-store' });
+        if (!productRes.ok) throw new Error("Falha ao carregar produto");
+        const product = await productRes.json();
+
+        // Buscar a lista de produtos apenas para o dropdown de upsell
+        const listRes = await fetch("/api/products", { cache: 'no-store' });
+        const products = await listRes.json();
         setAllProducts(products);
-        const product = products.find((p: any) => p.id === id);
         
         if (product) {
           console.log(`[Editar Produto] Dados do produto "${product.name}" carregados para edição.`);

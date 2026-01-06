@@ -9,7 +9,9 @@ import ReviewSection from "@/components/ReviewSection";
 import AnalyticsTracker from "@/components/AnalyticsTracker";
 import ProductVariationsWrapper from "@/components/ProductVariationsWrapper";
 import ProductGallery from "@/components/ProductGallery";
-import { getProductsFromDb } from "@/lib/db";
+import { getProductsFromDb, getProductBySlug, getProductById } from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{
@@ -19,9 +21,7 @@ interface PageProps {
 
 // Helper para buscar o produto diretamente do banco ou fallback
 async function getProduct(slug: string): Promise<Product | null> {
-  const products = await getProductsFromDb();
-  const product = products.find((p) => p.slug === slug);
-  return product || null;
+  return await getProductBySlug(slug);
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -45,8 +45,7 @@ export default async function ProductPage({ params }: PageProps) {
     notFound();
   }
 
-  const allProducts = await getProductsFromDb();
-  const upsellProduct = product?.upsellProductId ? allProducts.find(p => p.id === product.upsellProductId) : null;
+  const upsellProduct = product?.upsellProductId ? await getProductById(product.upsellProductId) : null;
 
   // Avaliações do produto
   const displayReviews = product.reviews || [];
