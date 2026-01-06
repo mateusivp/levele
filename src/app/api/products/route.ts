@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { dbProducts, getProductsFromDb, saveProductToDb } from "@/lib/db";
 import pool from "@/lib/db_connection";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const products = await getProductsFromDb();
   return NextResponse.json(products);

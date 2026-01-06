@@ -44,20 +44,23 @@ export async function getProductsFromDb(): Promise<Product[]> {
     }));
 
     // Retornamos os produtos do banco combinados com os produtos em memória
-    // Priorizamos o que está em memória para refletir alterações recentes da sessão
+    // Priorizamos o que está no banco de dados. Só usamos a memória se o banco falhar ou estiver vazio.
     const dbProductMap = new Map();
     
-    // Adicionamos primeiro o que veio do banco de dados real
-    dbRows.forEach(p => {
-      dbProductMap.set(p.id, p);
-    });
-
-    // Sobrescrevemos com o que está em memória (prioridade para alterações da sessão atual)
+    // Adicionamos primeiro o que está em memória (estáticos + novos da sessão)
     dbProducts.forEach(p => {
       dbProductMap.set(p.id, p);
     });
+
+    // Sobrescrevemos com o que veio do banco de dados real (que é a fonte da verdade)
+    dbRows.forEach(p => {
+      dbProductMap.set(p.id, p);
+    });
     
-    return Array.from(dbProductMap.values());
+    const allProducts = Array.from(dbProductMap.values());
+    console.log(`[DB] IDs carregados do Banco: ${dbRows.map(p => p.id).join(', ')}`);
+    console.log(`[DB] Total de produtos carregados: ${allProducts.length} (Banco: ${dbRows.length}, Memória: ${dbProducts.length})`);
+    return allProducts;
   } catch (error) {
     console.error("Erro ao buscar produtos do Postgres:", error);
     return dbProducts;

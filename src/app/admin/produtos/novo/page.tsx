@@ -176,7 +176,7 @@ export default function NewProductPage() {
       if (res.ok) {
         console.log(`[Novo Produto] Produto "${data.name}" cadastrado com sucesso.`);
         alert("Produto cadastrado com sucesso!");
-        router.push("/admin?tab=produtos");
+        router.push("/admin?tab=produtos&t=" + Date.now());
         router.refresh();
       } else {
         const errorText = await res.text();

@@ -189,7 +189,7 @@ export default function EditProductPage() {
       if (res.ok) {
         console.log(`[Editar Produto] Produto "${data.name}" atualizado com sucesso.`);
         alert("Produto atualizado com sucesso!");
-        router.push("/admin?tab=produtos");
+        router.push("/admin?tab=produtos&t=" + Date.now());
         router.refresh();
       } else {
         const errorText = await res.text();

@@ -85,11 +85,11 @@ function AdminDashboardContent() {
     setIsLoading(true);
     try {
       const [resProd, resOrders, resCoupons, resAbandoned, resAnalytics] = await Promise.all([
-        fetch("/api/products"),
-        fetch("/api/orders"),
-        fetch("/api/coupons"),
-        fetch("/api/abandoned"),
-        fetch("/api/analytics")
+        fetch("/api/products", { cache: 'no-store' }),
+        fetch("/api/orders", { cache: 'no-store' }),
+        fetch("/api/coupons", { cache: 'no-store' }),
+        fetch("/api/abandoned", { cache: 'no-store' }),
+        fetch("/api/analytics", { cache: 'no-store' })
       ]);
       const dataProd = await resProd.json();
       const dataOrders = await resOrders.json();
