@@ -39,6 +39,8 @@ export async function getProductsFromDb(): Promise<Product[]> {
       },
       upsellProductId: row.upsell_product_id,
       orderBumpId: row.order_bump_id,
+      variations: typeof row.variations === 'string' ? JSON.parse(row.variations) : (row.variations || []),
+      postPurchaseUpsell: typeof row.post_purchase_upsell === 'string' ? JSON.parse(row.post_purchase_upsell) : (row.post_purchase_upsell || null),
     }));
 
     // Retornamos os produtos do banco combinados com os produtos em memória
@@ -70,13 +72,14 @@ export async function saveProductToDb(product: Product) {
 
   try {
     await pool.query(
-      `INSERT INTO products (id, name, description, price, image, images, video_url, slug, category, active, seo_title, seo_description, upsell_product_id, order_bump_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      `INSERT INTO products (id, name, description, price, image, images, video_url, slug, category, active, seo_title, seo_description, upsell_product_id, order_bump_id, variations, post_purchase_upsell)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        ON CONFLICT (id) DO UPDATE SET 
        name=EXCLUDED.name, description=EXCLUDED.description, price=EXCLUDED.price, image=EXCLUDED.image, 
        images=EXCLUDED.images, video_url=EXCLUDED.video_url, slug=EXCLUDED.slug, category=EXCLUDED.category, 
        active=EXCLUDED.active, seo_title=EXCLUDED.seo_title, seo_description=EXCLUDED.seo_description,
-       upsell_product_id=EXCLUDED.upsell_product_id, order_bump_id=EXCLUDED.order_bump_id`,
+       upsell_product_id=EXCLUDED.upsell_product_id, order_bump_id=EXCLUDED.order_bump_id,
+       variations=EXCLUDED.variations, post_purchase_upsell=EXCLUDED.post_purchase_upsell`,
       [
         product.id,
         product.name,
@@ -91,11 +94,14 @@ export async function saveProductToDb(product: Product) {
         product.seo.title,
         product.seo.description,
         product.upsellProductId,
-        product.orderBumpId
+        product.orderBumpId,
+        JSON.stringify(product.variations || []),
+        JSON.stringify(product.postPurchaseUpsell || null)
       ]
     );
   } catch (error) {
     console.error("Erro ao salvar produto no Postgres:", error);
+    throw error; // Re-lança o erro para a API tratar
   }
 }
 

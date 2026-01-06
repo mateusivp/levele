@@ -163,16 +163,17 @@ export default function EditProductPage() {
       
       if (res.ok) {
         console.log(`[Editar Produto] Produto "${data.name}" atualizado com sucesso.`);
-        // Pequeno delay para garantir persistência antes do redirecionamento
-        setTimeout(() => {
-          alert("Produto atualizado com sucesso!");
-          router.push("/admin?tab=produtos");
-          router.refresh();
-        }, 500);
+        alert("Produto atualizado com sucesso!");
+        router.push("/admin?tab=produtos");
+        router.refresh();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(`Erro ao atualizar produto: ${errorData.error || res.statusText}`);
+        setIsSubmitting(false);
       }
     } catch (error) {
       console.error("Erro ao atualizar produto", error);
-    } finally {
+      alert("Erro de rede ao atualizar produto. Verifique sua conexão.");
       setIsSubmitting(false);
     }
   };

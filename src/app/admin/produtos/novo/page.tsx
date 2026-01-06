@@ -151,16 +151,17 @@ export default function NewProductPage() {
 
       if (res.ok) {
         console.log(`[Novo Produto] Produto "${data.name}" cadastrado com sucesso.`);
-        // Pequeno delay para garantir persistência antes do redirecionamento
-        setTimeout(() => {
-          alert("Produto cadastrado com sucesso!");
-          router.push("/admin?tab=produtos");
-          router.refresh();
-        }, 500);
+        alert("Produto cadastrado com sucesso!");
+        router.push("/admin?tab=produtos");
+        router.refresh();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(`Erro ao salvar produto: ${errorData.error || res.statusText}`);
+        setIsSubmitting(false);
       }
     } catch (error) {
       console.error("Erro ao cadastrar produto", error);
-    } finally {
+      alert("Erro de rede ao cadastrar produto. Verifique sua conexão.");
       setIsSubmitting(false);
     }
   };

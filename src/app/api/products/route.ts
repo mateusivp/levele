@@ -8,11 +8,10 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  console.log("[API] Recebendo requisição POST para /api/products");
   try {
     const product = await request.json();
-    
-    // Sempre atualizar em memória para feedback imediato
-    console.log(`[API] Salvando produto ${product.name} (ID: ${product.id}) em memória...`);
+    console.log(`[API] Dados recebidos para o produto: ${product.name}`);
     const index = dbProducts.findIndex(p => p.id === product.id);
     if (index !== -1) {
       dbProducts[index] = product;
@@ -57,9 +56,11 @@ export async function DELETE(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  console.log("[API] Recebendo requisição PUT para /api/products");
   try {
     const body = await request.json();
     const { id, ...data } = body;
+    console.log(`[API] Dados recebidos para atualização (ID: ${id})`);
     
     if (!id) return NextResponse.json({ error: "ID não fornecido" }, { status: 400 });
     

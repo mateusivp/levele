@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS products (
     seo_description TEXT,
     upsell_product_id VARCHAR(255),
     order_bump_id VARCHAR(255),
+    variations JSON,
+    post_purchase_upsell JSON,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
