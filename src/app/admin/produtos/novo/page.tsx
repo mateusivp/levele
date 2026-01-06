@@ -116,6 +116,8 @@ export default function NewProductPage() {
 
   const onSubmit = async (data: ProductFormData) => {
     setIsSubmitting(true);
+    console.log("[Novo Produto] Iniciando processo de salvamento...");
+    
     try {
       const category = data.category === "Outra" ? data.customCategory || "Geral" : data.category;
       const productId = Math.random().toString(36).substring(2, 9);
@@ -143,11 +145,26 @@ export default function NewProductPage() {
         postPurchaseUpsell: data.postPurchaseUpsell?.productId ? data.postPurchaseUpsell : undefined,
       };
 
+      console.log("[Novo Produto] Enviando dados para a API...", { 
+        id: productId, 
+        name: data.name,
+        imageSize: data.image?.length,
+        additionalImagesCount: productData.images?.length 
+      });
+
+      // AbortController para timeout de 30 segundos
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
       const res = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(productData),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
+      console.log("[Novo Produto] Resposta da API recebida:", res.status);
 
       if (res.ok) {
         console.log(`[Novo Produto] Produto "${data.name}" cadastrado com sucesso.`);
@@ -155,13 +172,21 @@ export default function NewProductPage() {
         router.push("/admin?tab=produtos");
         router.refresh();
       } else {
-        const errorData = await res.json().catch(() => ({}));
-        alert(`Erro ao salvar produto: ${errorData.error || res.statusText}`);
+        const errorText = await res.text();
+        console.error("[Novo Produto] Erro na resposta da API:", errorText);
+        let errorData = {};
+        try { errorData = JSON.parse(errorText); } catch (e) {}
+        alert(`Erro ao salvar produto: ${(errorData as any).error || res.statusText || "Erro desconhecido"}`);
         setIsSubmitting(false);
       }
-    } catch (error) {
-      console.error("Erro ao cadastrar produto", error);
-      alert("Erro de rede ao cadastrar produto. Verifique sua conexão.");
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.error("[Novo Produto] A requisição excedeu o tempo limite (30s)");
+        alert("O servidor demorou muito para responder. Tente usar imagens menores.");
+      } else {
+        console.error("[Novo Produto] Erro crítico ao cadastrar produto:", error);
+        alert(`Erro de rede ou no servidor: ${error.message}`);
+      }
       setIsSubmitting(false);
     }
   };

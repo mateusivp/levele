@@ -132,6 +132,8 @@ export default function EditProductPage() {
 
   const onSubmit = async (data: ProductFormData) => {
     setIsSubmitting(true);
+    console.log("[Editar Produto] Iniciando atualização...");
+    
     try {
       const category = data.category === "Outra" ? data.customCategory || "Geral" : data.category;
       
@@ -155,25 +157,48 @@ export default function EditProductPage() {
         postPurchaseUpsell: data.postPurchaseUpsell?.productId ? data.postPurchaseUpsell : undefined,
       };
 
+      console.log("[Editar Produto] Enviando dados para a API...", { 
+        id, 
+        name: data.name,
+        imageSize: data.image?.length,
+        additionalImagesCount: productData.images?.length 
+      });
+
+      // AbortController para timeout de 30 segundos
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
       const res = await fetch("/api/products", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(productData),
+        signal: controller.signal
       });
       
+      clearTimeout(timeoutId);
+      console.log("[Editar Produto] Resposta da API recebida:", res.status);
+
       if (res.ok) {
         console.log(`[Editar Produto] Produto "${data.name}" atualizado com sucesso.`);
         alert("Produto atualizado com sucesso!");
         router.push("/admin?tab=produtos");
         router.refresh();
       } else {
-        const errorData = await res.json().catch(() => ({}));
-        alert(`Erro ao atualizar produto: ${errorData.error || res.statusText}`);
+        const errorText = await res.text();
+        console.error("[Editar Produto] Erro na resposta da API:", errorText);
+        let errorData = {};
+        try { errorData = JSON.parse(errorText); } catch (e) {}
+        alert(`Erro ao atualizar produto: ${(errorData as any).error || res.statusText || "Erro desconhecido"}`);
         setIsSubmitting(false);
       }
-    } catch (error) {
-      console.error("Erro ao atualizar produto", error);
-      alert("Erro de rede ao atualizar produto. Verifique sua conexão.");
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.error("[Editar Produto] A requisição excedeu o tempo limite (30s)");
+        alert("O servidor demorou muito para responder. Tente usar imagens menores.");
+      } else {
+        console.error("[Editar Produto] Erro crítico ao atualizar produto:", error);
+        alert(`Erro de rede ou no servidor: ${error.message}`);
+      }
       setIsSubmitting(false);
     }
   };
