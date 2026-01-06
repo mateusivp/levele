@@ -163,8 +163,12 @@ export default function EditProductPage() {
       
       if (res.ok) {
         console.log(`[Editar Produto] Produto "${data.name}" atualizado com sucesso.`);
-        alert("Produto atualizado com sucesso!");
-        router.push("/admin");
+        // Pequeno delay para garantir persistência antes do redirecionamento
+        setTimeout(() => {
+          alert("Produto atualizado com sucesso!");
+          router.push("/admin?tab=produtos");
+          router.refresh();
+        }, 500);
       }
     } catch (error) {
       console.error("Erro ao atualizar produto", error);

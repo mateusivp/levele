@@ -41,14 +41,21 @@ export async function getProductsFromDb(): Promise<Product[]> {
       orderBumpId: row.order_bump_id,
     }));
 
-    // Retornamos os produtos do banco combinados com os produtos padrão que não estão no banco
-    const dbProductIds = new Set(dbRows.map(p => p.id));
-    const combinedProducts = [
-      ...dbRows,
-      ...dbProducts.filter(p => !dbProductIds.has(p.id))
-    ];
+    // Retornamos os produtos do banco combinados com os produtos em memória
+    // Priorizamos o que está em memória para refletir alterações recentes da sessão
+    const dbProductMap = new Map();
     
-    return combinedProducts;
+    // Adicionamos primeiro o que veio do banco de dados real
+    dbRows.forEach(p => {
+      dbProductMap.set(p.id, p);
+    });
+
+    // Sobrescrevemos com o que está em memória (prioridade para alterações da sessão atual)
+    dbProducts.forEach(p => {
+      dbProductMap.set(p.id, p);
+    });
+    
+    return Array.from(dbProductMap.values());
   } catch (error) {
     console.error("Erro ao buscar produtos do Postgres:", error);
     return dbProducts;
@@ -125,6 +132,10 @@ export const dbProducts: Product[] = globalForDb.dbProducts ?? products.map((pro
     }
   ] as Product['reviews']
 }));
+
+if (!globalForDb.dbProducts) {
+  globalForDb.dbProducts = dbProducts;
+}
 
 // Cupons iniciais
 export const dbCoupons = globalForDb.dbCoupons ?? [

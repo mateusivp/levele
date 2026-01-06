@@ -10,11 +10,22 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const product = await request.json();
+    
+    // Sempre atualizar em memória para feedback imediato
+    console.log(`[API] Salvando produto ${product.name} (ID: ${product.id}) em memória...`);
+    const index = dbProducts.findIndex(p => p.id === product.id);
+    if (index !== -1) {
+      dbProducts[index] = product;
+    } else {
+      dbProducts.push(product);
+    }
+
     if (pool) {
+      console.log(`[API] Persistindo produto ${product.name} no banco de dados...`);
       await saveProductToDb(product);
+      console.log(`[API] Produto ${product.name} salvo com sucesso no banco.`);
     } else {
       console.warn("Conexão com Postgres não configurada. Salvando produto apenas em memória.");
-      dbProducts.push(product);
     }
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
@@ -58,13 +69,18 @@ export async function PUT(request: Request) {
     
     const updatedProduct = { ...existingProduct, ...data };
     
-    // Atualizar no MySQL
-    await saveProductToDb(updatedProduct);
-    
-    // Fallback em memória
+    // Atualizar em memória primeiro para feedback imediato
+    console.log(`[API] Atualizando produto ${updatedProduct.name} (ID: ${id}) em memória...`);
     const index = dbProducts.findIndex(p => p.id === id);
     if (index !== -1) {
       dbProducts[index] = updatedProduct;
+    }
+
+    // Atualizar no banco de dados
+    if (pool) {
+      console.log(`[API] Persistindo atualização do produto ${updatedProduct.name} no banco...`);
+      await saveProductToDb(updatedProduct);
+      console.log(`[API] Produto ${updatedProduct.name} atualizado com sucesso no banco.`);
     }
 
     return NextResponse.json(updatedProduct);

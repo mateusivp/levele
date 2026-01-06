@@ -151,8 +151,12 @@ export default function NewProductPage() {
 
       if (res.ok) {
         console.log(`[Novo Produto] Produto "${data.name}" cadastrado com sucesso.`);
-        alert("Produto cadastrado com sucesso!");
-        router.push("/admin");
+        // Pequeno delay para garantir persistência antes do redirecionamento
+        setTimeout(() => {
+          alert("Produto cadastrado com sucesso!");
+          router.push("/admin?tab=produtos");
+          router.refresh();
+        }, 500);
       }
     } catch (error) {
       console.error("Erro ao cadastrar produto", error);

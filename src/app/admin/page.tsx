@@ -54,8 +54,10 @@ function AdminDashboardContent() {
 
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab && (tab === 'dashboard' || tab === 'produtos' || tab === 'pedidos')) {
+    if (tab && (tab === 'dashboard' || tab === 'produtos' || tab === 'pedidos' || tab === 'cupons' || tab === 'avaliacoes' || tab === 'abandonados')) {
       setActiveTab(tab as any);
+      // Sempre buscar dados novos ao mudar de aba via URL (redirecionamentos)
+      fetchData();
     }
   }, [searchParams]);
 
