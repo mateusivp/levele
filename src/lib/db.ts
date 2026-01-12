@@ -50,6 +50,7 @@ export async function getProductsFromDb(): Promise<Product[]> {
       })(),
       variations: typeof row.variations === 'string' ? JSON.parse(row.variations) : (row.variations || []),
       postPurchaseUpsell: typeof row.post_purchase_upsell === 'string' ? JSON.parse(row.post_purchase_upsell) : (row.post_purchase_upsell || null),
+      reviews: typeof row.reviews === 'string' ? JSON.parse(row.reviews) : (row.reviews || []),
     }));
 
     // Retornamos os produtos do banco combinados com os produtos em memória
@@ -69,6 +70,10 @@ export async function getProductsFromDb(): Promise<Product[]> {
     const allProducts = Array.from(dbProductMap.values());
     console.log(`[DB] IDs carregados do Banco: ${dbRows.map(p => p.id).join(', ')}`);
     console.log(`[DB] Total de produtos carregados: ${allProducts.length} (Banco: ${dbRows.length}, Memória: ${dbProducts.length})`);
+    
+    // Sincroniza memória global
+    globalForDb.dbProducts = allProducts;
+    
     return allProducts;
   } catch (error) {
     console.error("Erro ao buscar produtos do Postgres:", error);
@@ -172,6 +177,18 @@ export async function getProductById(id: string): Promise<Product | null> {
 }
 
 export async function saveProductToDb(product: Product) {
+  // Atualiza a memória
+  if (globalForDb.dbProducts) {
+    const index = globalForDb.dbProducts.findIndex(p => p.id === product.id);
+    if (index >= 0) {
+      globalForDb.dbProducts[index] = product;
+    } else {
+      globalForDb.dbProducts.push(product);
+    }
+  } else {
+    globalForDb.dbProducts = [product];
+  }
+
   if (!pool) {
     console.warn("Conexão com Postgres não configurada para salvar produto.");
     return;
@@ -179,14 +196,14 @@ export async function saveProductToDb(product: Product) {
 
   try {
     await pool.query(
-      `INSERT INTO products (id, name, description, price, image, images, video_url, slug, category, active, seo_title, seo_description, upsell_product_id, order_bump_id, order_bump_ids, variations, post_purchase_upsell)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      `INSERT INTO products (id, name, description, price, image, images, video_url, slug, category, active, seo_title, seo_description, upsell_product_id, order_bump_id, order_bump_ids, variations, post_purchase_upsell, reviews)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        ON CONFLICT (id) DO UPDATE SET 
        name=EXCLUDED.name, description=EXCLUDED.description, price=EXCLUDED.price, image=EXCLUDED.image, 
        images=EXCLUDED.images, video_url=EXCLUDED.video_url, slug=EXCLUDED.slug, category=EXCLUDED.category, 
        active=EXCLUDED.active, seo_title=EXCLUDED.seo_title, seo_description=EXCLUDED.seo_description,
        upsell_product_id=EXCLUDED.upsell_product_id, order_bump_id=EXCLUDED.order_bump_id, order_bump_ids=EXCLUDED.order_bump_ids,
-       variations=EXCLUDED.variations, post_purchase_upsell=EXCLUDED.post_purchase_upsell`,
+       variations=EXCLUDED.variations, post_purchase_upsell=EXCLUDED.post_purchase_upsell, reviews=EXCLUDED.reviews`,
       [
         product.id,
         product.name,
@@ -204,12 +221,155 @@ export async function saveProductToDb(product: Product) {
         product.orderBumpId,
         JSON.stringify(product.orderBumpIds || []),
         JSON.stringify(product.variations || []),
-        JSON.stringify(product.postPurchaseUpsell || null)
+        JSON.stringify(product.postPurchaseUpsell || null),
+        JSON.stringify(product.reviews || [])
       ]
     );
   } catch (error) {
     console.error("Erro ao salvar produto no Postgres:", error);
     throw error; // Re-lança o erro para a API tratar
+  }
+}
+
+export async function deleteProductFromDb(id: string) {
+  if (globalForDb.dbProducts) {
+    globalForDb.dbProducts = globalForDb.dbProducts.filter(p => p.id !== id);
+  }
+
+  if (!pool) return;
+  try {
+    await pool.query('DELETE FROM products WHERE id = $1', [id]);
+    console.log(`[DB] Produto ${id} deletado do Postgres`);
+  } catch (error) {
+    console.error("Erro ao deletar produto no Postgres:", error);
+    throw error;
+  }
+}
+
+export async function getOrdersFromDb(): Promise<Order[]> {
+  if (!pool) return globalForDb.dbOrders || [];
+  try {
+    const { rows } = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
+    const orders = rows.map(row => ({
+      id: row.id,
+      customer: typeof row.customer === 'string' ? JSON.parse(row.customer) : row.customer,
+      items: typeof row.items === 'string' ? JSON.parse(row.items) : row.items,
+      total: Number(row.total),
+      status: row.status,
+      createdAt: row.created_at,
+      statusHistory: typeof row.status_history === 'string' ? JSON.parse(row.status_history) : (row.status_history || []),
+      deliveryDate: row.delivery_date,
+      discount: typeof row.discount === 'string' ? JSON.parse(row.discount) : row.discount,
+    }));
+    
+    // Sincroniza memória
+    globalForDb.dbOrders = orders;
+    return orders;
+  } catch (error) {
+    console.error("Erro ao buscar pedidos do Postgres:", error);
+    return globalForDb.dbOrders || [];
+  }
+}
+
+export async function saveOrderToDb(order: Order) {
+  const orders = globalForDb.dbOrders || [];
+  const index = orders.findIndex(o => o.id === order.id);
+  if (index >= 0) {
+    orders[index] = order;
+  } else {
+    orders.unshift(order);
+  }
+  globalForDb.dbOrders = orders;
+
+  if (!pool) return;
+  try {
+    // Salvar o pedido
+    await pool.query(
+      `INSERT INTO orders (id, customer, items, total, status, created_at, status_history, delivery_date, discount)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (id) DO UPDATE SET 
+       customer=EXCLUDED.customer, items=EXCLUDED.items, total=EXCLUDED.total, 
+       status=EXCLUDED.status, status_history=EXCLUDED.status_history, 
+       delivery_date=EXCLUDED.delivery_date, discount=EXCLUDED.discount`,
+      [
+        order.id,
+        JSON.stringify(order.customer),
+        JSON.stringify(order.items),
+        order.total,
+        order.status,
+        order.createdAt,
+        JSON.stringify(order.statusHistory || []),
+        order.deliveryDate,
+        JSON.stringify(order.discount || null)
+      ]
+    );
+
+    // Salvar ou atualizar o cliente
+    if (order.customer && order.customer.phone) {
+      await pool.query(
+        `INSERT INTO customers (id, name, email, phone, cashback, points)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (phone) DO UPDATE SET 
+         name=EXCLUDED.name, email=EXCLUDED.email, 
+         cashback = customers.cashback + EXCLUDED.cashback,
+         points = customers.points + EXCLUDED.points`,
+        [
+          `cust-${Math.random().toString(36).substr(2, 9)}`,
+          order.customer.name,
+          order.customer.email || "",
+          order.customer.phone,
+          (order.total * 0.05), // 5% de cashback por padrão
+          Math.floor(order.total) // 1 ponto por real
+        ]
+      );
+    }
+  } catch (error) {
+    console.error("Erro ao salvar pedido e cliente no Postgres:", error);
+  }
+}
+
+export async function getCustomerByPhone(phone: string) {
+  if (!pool) return null;
+  try {
+    const { rows } = await pool.query('SELECT * FROM customers WHERE phone = $1', [phone]);
+    return rows[0] || null;
+  } catch (error) {
+    console.error("Erro ao buscar cliente por telefone no Postgres:", error);
+    return null;
+  }
+}
+
+export async function updateCustomerPassword(phone: string, password: string) {
+  if (!pool) return;
+  try {
+    await pool.query('UPDATE customers SET password = $1 WHERE phone = $2', [password, phone]);
+  } catch (error) {
+    console.error("Erro ao atualizar senha do cliente no Postgres:", error);
+    throw error;
+  }
+}
+
+export async function getVisitsFromDb(): Promise<number> {
+  if (!pool) return globalForDb.dbVisits || 0;
+  try {
+    const { rows } = await pool.query("SELECT metric_value FROM analytics WHERE metric_name = 'visits'");
+    return rows.length > 0 ? rows[0].metric_value : 0;
+  } catch (error) {
+    console.error("Erro ao buscar visitas do Postgres:", error);
+    return globalForDb.dbVisits || 0;
+  }
+}
+
+export async function incrementVisitsInDb() {
+  globalForDb.dbVisits = (globalForDb.dbVisits || 0) + 1;
+  if (!pool) return;
+  try {
+    await pool.query(
+      `INSERT INTO analytics (metric_name, metric_value) VALUES ('visits', 1)
+       ON CONFLICT (metric_name) DO UPDATE SET metric_value = analytics.metric_value + 1`
+    );
+  } catch (error) {
+    console.error("Erro ao incrementar visitas no Postgres:", error);
   }
 }
 
@@ -484,7 +644,6 @@ if (!globalForDb.dbCategories) {
   globalForDb.dbCategories = dbCategories;
 }
 export const dbAbandonedCarts = globalForDb.dbAbandonedCarts ?? [];
-export const dbVisits = globalForDb.dbVisits ?? 0;
 export const dbProducts: Product[] = globalForDb.dbProducts ?? products.map((product, pIdx) => ({
   ...product,
   active: true,
@@ -602,16 +761,94 @@ export async function deleteCouponFromDb(code: string) {
   }
 }
 
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.dbOrders = dbOrders;
-  globalForDb.dbProducts = dbProducts;
-  globalForDb.dbCoupons = dbCoupons;
-  globalForDb.dbAbandonedCarts = dbAbandonedCarts;
-  globalForDb.dbVisits = dbVisits;
+export async function getAbandonedCartsFromDb(): Promise<AbandonedCart[]> {
+  if (!pool) {
+    return globalForDb.dbAbandonedCarts || [];
+  }
+
+  try {
+    const { rows } = await pool.query('SELECT * FROM abandoned_carts ORDER BY createdat DESC');
+    const carts = rows.map(row => ({
+      id: row.id,
+      productId: row.productid,
+      productName: row.productname,
+      variationId: row.variationid,
+      variationName: row.variationname,
+      customer: {
+        name: row.customer_name,
+        phone: row.customer_phone
+      },
+      total: Number(row.total),
+      status: row.status,
+      createdAt: row.createdat
+    }));
+
+    globalForDb.dbAbandonedCarts = carts;
+    return carts;
+  } catch (error) {
+    console.error("Erro ao buscar carrinhos abandonados do Postgres:", error);
+    return globalForDb.dbAbandonedCarts || [];
+  }
 }
 
-export function incrementVisits() {
-  const current = globalForDb.dbVisits ?? 0;
-  globalForDb.dbVisits = current + 1;
-  return globalForDb.dbVisits;
+export async function saveAbandonedCartToDb(cart: AbandonedCart) {
+  // Atualiza memória
+  const carts = globalForDb.dbAbandonedCarts || [];
+  const index = carts.findIndex(c => c.id === cart.id);
+  
+  if (index >= 0) {
+    carts[index] = cart;
+  } else {
+    carts.push(cart);
+  }
+  globalForDb.dbAbandonedCarts = carts;
+
+  if (!pool) return;
+
+  try {
+    await pool.query(
+      `INSERT INTO abandoned_carts (id, productid, productname, variationid, variationname, customer_name, customer_phone, total, status, createdat)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       ON CONFLICT (id) DO UPDATE SET 
+       productid=EXCLUDED.productid, productname=EXCLUDED.productname, variationid=EXCLUDED.variationid, 
+       variationname=EXCLUDED.variationname, customer_name=EXCLUDED.customer_name, customer_phone=EXCLUDED.customer_phone, 
+       total=EXCLUDED.total, status=EXCLUDED.status, createdat=EXCLUDED.createdat`,
+      [
+        cart.id,
+        cart.productId,
+        cart.productName,
+        cart.variationId,
+        cart.variationName,
+        cart.customer.name,
+        cart.customer.phone,
+        cart.total,
+        cart.status,
+        cart.createdAt
+      ]
+    );
+  } catch (error) {
+    console.error("Erro ao salvar carrinho abandonado no Postgres:", error);
+  }
+}
+
+export async function deleteAbandonedCartFromDb(id: string) {
+  // Atualiza memória
+  const carts = globalForDb.dbAbandonedCarts || [];
+  globalForDb.dbAbandonedCarts = carts.filter(c => c.id !== id);
+
+  if (!pool) return;
+
+  try {
+    await pool.query('DELETE FROM abandoned_carts WHERE id = $1', [id]);
+  } catch (error) {
+    console.error("Erro ao deletar carrinho abandonado no Postgres:", error);
+  }
+}
+
+if (process.env.NODE_ENV !== "production") {
+  globalForDb.dbOrders = globalForDb.dbOrders || [];
+  globalForDb.dbProducts = globalForDb.dbProducts || [];
+  globalForDb.dbCoupons = globalForDb.dbCoupons || [];
+  globalForDb.dbAbandonedCarts = globalForDb.dbAbandonedCarts || [];
+  globalForDb.dbVisits = globalForDb.dbVisits || 0;
 }

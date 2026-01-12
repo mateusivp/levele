@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { dbAbandonedCarts } from "@/lib/db";
+import { dbAbandonedCarts, getAbandonedCartsFromDb, saveAbandonedCartToDb, deleteAbandonedCartFromDb } from "@/lib/db";
 import { AbandonedCart } from "@/types";
 
 export async function GET() {
-  return NextResponse.json(dbAbandonedCarts);
+  const carts = await getAbandonedCartsFromDb();
+  return NextResponse.json(carts);
 }
 
 export async function POST(request: Request) {
@@ -15,24 +16,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Nome e telefone são obrigatórios" }, { status: 400 });
     }
 
+    const abandonedCarts = await getAbandonedCartsFromDb();
+
     // Verificar se já existe um carrinho abandonado para este telefone recentemente (última 1 hora)
-    const existingIndex = dbAbandonedCarts.findIndex(c => 
+    const existingCart = abandonedCarts.find(c => 
       c.customer.phone === phone && 
       c.status === 'Pendente' &&
       (new Date().getTime() - new Date(c.createdAt).getTime()) < 3600000
     );
 
-    if (existingIndex !== -1) {
+    if (existingCart) {
       // Atualizar o existente
-      dbAbandonedCarts[existingIndex] = {
-        ...dbAbandonedCarts[existingIndex],
+      const updatedCart = {
+        ...existingCart,
         productId,
         productName,
         customer: { name, phone },
         total,
         createdAt: new Date().toISOString()
       };
-      return NextResponse.json(dbAbandonedCarts[existingIndex]);
+      await saveAbandonedCartToDb(updatedCart);
+      return NextResponse.json(updatedCart);
     }
 
     const newAbandoned: AbandonedCart = {
@@ -45,7 +49,7 @@ export async function POST(request: Request) {
       status: 'Pendente'
     };
 
-    dbAbandonedCarts.push(newAbandoned);
+    await saveAbandonedCartToDb(newAbandoned);
     console.log(`[API] Carrinho abandonado capturado para ${name} (${phone})`);
     
     return NextResponse.json(newAbandoned, { status: 201 });
@@ -62,10 +66,7 @@ export async function DELETE(request: Request) {
 
     if (!id) return NextResponse.json({ error: "ID não fornecido" }, { status: 400 });
 
-    const index = dbAbandonedCarts.findIndex(c => c.id === id);
-    if (index !== -1) {
-      dbAbandonedCarts.splice(index, 1);
-    }
+    await deleteAbandonedCartFromDb(id);
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: "Erro ao deletar" }, { status: 500 });

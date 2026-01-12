@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { dbProducts } from "@/lib/db";
+import { getProductById, saveProductToDb } from "@/lib/db";
 
 export async function POST(request: Request) {
   try {
@@ -10,8 +10,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
     }
 
-    const productIndex = dbProducts.findIndex(p => p.id === productId);
-    if (productIndex === -1) {
+    const product = await getProductById(productId);
+    if (!product) {
       return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 });
     }
 
@@ -19,19 +19,21 @@ export async function POST(request: Request) {
       id: Math.random().toString(36).substring(2, 11),
       userName: String(userName),
       rating: Number(rating),
+      date: new Date().toISOString(),
       comment: String(comment).substring(0, 180),
       image: image ? String(image) : undefined,
-      status: 'pendente' as const,
-      date: new Date().toISOString()
+      status: 'pendente' as const
     };
 
-    if (!dbProducts[productIndex].reviews) {
-      dbProducts[productIndex].reviews = [];
+    if (!product.reviews) {
+      product.reviews = [];
     }
 
-    dbProducts[productIndex].reviews!.push(newReview);
+    product.reviews.push(newReview);
 
-    // Persistir no banco de dados "fixo" se necessário (embora dbProducts seja volátil em dev, isso ajuda a manter a referência)
+    // Persistir no banco de dados (que também atualiza a memória interna)
+    await saveProductToDb(product);
+
     console.log(`[API] Nova avaliação pendente para o produto ${productId}:`, newReview);
     return NextResponse.json(newReview, { status: 201 });
   } catch (error) {
@@ -49,19 +51,21 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
     }
 
-    const productIndex = dbProducts.findIndex(p => p.id === productId);
-    if (productIndex === -1) {
+    const product = await getProductById(productId);
+    if (!product) {
       return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 });
     }
 
-    const reviewIndex = dbProducts[productIndex].reviews?.findIndex(r => r.id === reviewId);
+    const reviewIndex = product.reviews?.findIndex(r => r.id === reviewId);
     if (reviewIndex === undefined || reviewIndex === -1) {
       return NextResponse.json({ error: "Avaliação não encontrada" }, { status: 404 });
     }
 
-    if (dbProducts[productIndex].reviews) {
-      dbProducts[productIndex].reviews[reviewIndex].status = status as 'pendente' | 'aprovada' | 'rejeitada';
+    if (product.reviews) {
+      product.reviews[reviewIndex].status = status as 'pendente' | 'aprovada' | 'rejeitada';
     }
+
+    await saveProductToDb(product);
 
     console.log(`[API] Avaliação ${reviewId} atualizada para status: ${status}`);
     return NextResponse.json({ success: true });
@@ -81,17 +85,19 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
     }
 
-    const productIndex = dbProducts.findIndex(p => p.id === productId);
-    if (productIndex === -1) {
+    const product = await getProductById(productId);
+    if (!product) {
       return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 });
     }
 
-    const reviewIndex = dbProducts[productIndex].reviews?.findIndex(r => r.id === reviewId);
+    const reviewIndex = product.reviews?.findIndex(r => r.id === reviewId);
     if (reviewIndex === undefined || reviewIndex === -1) {
       return NextResponse.json({ error: "Avaliação não encontrada" }, { status: 404 });
     }
 
-    dbProducts[productIndex].reviews?.splice(reviewIndex, 1);
+    product.reviews?.splice(reviewIndex, 1);
+
+    await saveProductToDb(product);
 
     console.log(`[API] Avaliação ${reviewId} deletada do produto ${productId}`);
     return NextResponse.json({ success: true });

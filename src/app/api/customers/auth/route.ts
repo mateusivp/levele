@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getCustomerByPhone, updateCustomerPassword } from "@/lib/db";
 import pool from "@/lib/db_connection";
 
 export async function POST(request: Request) {
@@ -10,9 +11,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Telefone é obrigatório" }, { status: 400 });
     }
 
-    if (!pool) {
-      // Fallback para desenvolvimento sem banco (simulado)
-      if (phone === "43 9 9824-5853") {
+    // Buscar cliente pelo telefone usando função centralizada
+    const customer = await getCustomerByPhone(phone);
+
+    if (!customer) {
+      // Fallback para desenvolvimento sem banco (simulado) apenas se pool não existir
+      if (!pool && phone === "43 9 9824-5853") {
         if (!action) {
           return NextResponse.json({
             status: "enter_password",
@@ -35,14 +39,6 @@ export async function POST(request: Request) {
           });
         }
       }
-      return NextResponse.json({ error: "Banco de dados não conectado. Verifique o POSTGRES_URL." }, { status: 500 });
-    }
-
-    // Buscar cliente pelo telefone
-    const { rows } = await pool.query('SELECT * FROM customers WHERE phone = $1', [phone]);
-    const customer = rows[0];
-
-    if (!customer) {
       return NextResponse.json({ status: "not_found", message: "Cliente não encontrado. Finalize um pedido primeiro." });
     }
 
@@ -61,7 +57,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Senha já definida" }, { status: 400 });
       }
       
-      await pool.query('UPDATE customers SET password = $1 WHERE phone = $2', [password, phone]);
+      await updateCustomerPassword(phone, password);
       
       // Retornar dados do cliente logado
       return NextResponse.json({
@@ -103,9 +99,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ error: "Ação inválida" }, { status: 400 });
-
   } catch (error) {
-    console.error("[API Auth] Erro:", error);
-    return NextResponse.json({ error: "Erro interno no servidor" }, { status: 500 });
+    console.error("[API] Erro na autenticação:", error);
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
   }
-}

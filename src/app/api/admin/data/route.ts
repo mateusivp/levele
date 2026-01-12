@@ -3,27 +3,30 @@ import {
   getProductsFromDb, 
   getCategoriesFromDb, 
   getCouponsFromDb,
-  dbOrders, 
-  dbAbandonedCarts, 
-  dbVisits 
+  getOrdersFromDb,
+  getAbandonedCartsFromDb,
+  getVisitsFromDb
 } from "@/lib/db";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const [products, categories, coupons] = await Promise.all([
+    const [products, categories, coupons, orders, abandonedCarts, visits] = await Promise.all([
       getProductsFromDb(),
       getCategoriesFromDb(),
-      getCouponsFromDb()
+      getCouponsFromDb(),
+      getOrdersFromDb(),
+      getAbandonedCartsFromDb(),
+      getVisitsFromDb()
     ]);
 
     return NextResponse.json({
       products,
-      orders: dbOrders,
+      orders,
       coupons,
-      abandonedCarts: dbAbandonedCarts,
-      visits: dbVisits,
+      abandonedCarts,
+      visits,
       categories
     });
   } catch (error) {

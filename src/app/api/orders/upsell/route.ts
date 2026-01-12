@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { dbOrders } from "@/lib/db";
+import { getOrdersFromDb, saveOrderToDb } from "@/lib/db";
 
 export async function POST(request: Request) {
   try {
@@ -12,11 +12,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
     }
 
-    const orderIndex = dbOrders.findIndex(o => o.id === orderId);
+    const orders = await getOrdersFromDb();
+    const orderIndex = orders.findIndex(o => o.id === orderId);
     if (orderIndex === -1) {
       console.warn(`[API] Pedido não encontrado para upsell: ${orderId}`);
       return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
     }
+
+    const order = orders[orderIndex];
 
     // Adiciona o item ao pedido
     const newItem = {
@@ -27,13 +30,15 @@ export async function POST(request: Request) {
       isUpsell: true // Marcando como upsell para referência futura
     };
 
-    dbOrders[orderIndex].items.push(newItem);
+    order.items.push(newItem);
     
     // Recalcula o total do pedido
-    dbOrders[orderIndex].total += price * quantity;
+    order.total = Number(order.total) + (price * quantity);
+
+    await saveOrderToDb(order);
 
     console.log(`[API] Upsell adicionado com sucesso ao pedido ${orderId}`);
-    return NextResponse.json(dbOrders[orderIndex]);
+    return NextResponse.json(order);
   } catch (error) {
     console.error("[API] Erro ao adicionar upsell:", error);
     return NextResponse.json({ error: "Erro ao processar upsell" }, { status: 500 });

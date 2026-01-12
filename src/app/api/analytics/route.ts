@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { dbVisits, incrementVisits } from "@/lib/db";
+import { getVisitsFromDb, incrementVisitsInDb } from "@/lib/db";
 
 export async function GET() {
-  return NextResponse.json({ visits: dbVisits });
+  const visits = await getVisitsFromDb();
+  return NextResponse.json({ visits });
 }
 
 export async function POST() {
-  const newCount = incrementVisits();
-  return NextResponse.json({ visits: newCount });
+  await incrementVisitsInDb();
+  const visits = await getVisitsFromDb();
+  return NextResponse.json({ visits });
 }

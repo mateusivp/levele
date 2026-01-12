@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { dbProducts, getProductsFromDb, saveProductToDb } from "@/lib/db";
+import { getProductsFromDb, saveProductToDb, deleteProductFromDb } from "@/lib/db";
 import pool from "@/lib/db_connection";
 
 export const dynamic = 'force-dynamic';
@@ -14,31 +14,10 @@ export async function POST(request: Request) {
   try {
     const product = await request.json();
     console.log(`[API] Dados recebidos para o produto: ${product.name}`);
-    const index = dbProducts.findIndex(p => p.id === product.id);
-    if (index !== -1) {
-      dbProducts[index] = product;
-    } else {
-      dbProducts.push(product);
-    }
-
-    // Atualizar no banco de dados com timeout de 10 segundos
-    if (pool) {
-      console.log(`[API] Persistindo produto ${product.name} no banco de dados...`);
-      try {
-        const dbPromise = saveProductToDb(product);
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Timeout no banco de dados")), 10000)
-        );
-        await Promise.race([dbPromise, timeoutPromise]);
-        console.log(`[API] Produto ${product.name} salvo com sucesso no banco.`);
-      } catch (dbError: any) {
-        console.error(`[API] Falha na persistência DB (mas salvo em memória):`, dbError.message);
-        // Não retornamos erro 500 aqui para não travar o frontend, 
-        // já que salvamos em memória com sucesso acima.
-      }
-    } else {
-      console.warn("Conexão com Postgres não configurada. Salvando produto apenas em memória.");
-    }
+    
+    // Salvar no banco (que também atualiza a memória interna)
+    await saveProductToDb(product);
+    
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
     console.error("Erro ao salvar produto:", error);
@@ -53,17 +32,11 @@ export async function DELETE(request: Request) {
     
     if (!id) return NextResponse.json({ error: "ID não fornecido" }, { status: 400 });
     
-    // Deletar do Postgres
-    if (pool) {
-      await pool.query('DELETE FROM products WHERE id = $1', [id]);
-    }
+    await deleteProductFromDb(id);
     
-    const index = dbProducts.findIndex(p => p.id === id);
-    if (index !== -1) {
-      dbProducts.splice(index, 1);
-    }
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("Erro ao deletar produto:", error);
     return NextResponse.json({ error: "Erro ao deletar produto" }, { status: 500 });
   }
 }
@@ -83,27 +56,8 @@ export async function PUT(request: Request) {
     
     const updatedProduct = { ...existingProduct, ...data };
     
-    // Atualizar em memória primeiro para feedback imediato
-    console.log(`[API] Atualizando produto ${updatedProduct.name} (ID: ${id}) em memória...`);
-    const index = dbProducts.findIndex(p => p.id === id);
-    if (index !== -1) {
-      dbProducts[index] = updatedProduct;
-    }
-
-    // Atualizar no banco de dados com timeout de 10 segundos
-    if (pool) {
-      console.log(`[API] Persistindo atualização do produto ${updatedProduct.name} no banco...`);
-      try {
-        const dbPromise = saveProductToDb(updatedProduct);
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Timeout no banco de dados")), 10000)
-        );
-        await Promise.race([dbPromise, timeoutPromise]);
-        console.log(`[API] Produto ${updatedProduct.name} atualizado com sucesso no banco.`);
-      } catch (dbError: any) {
-        console.error(`[API] Falha na persistência DB ao atualizar (mas salvo em memória):`, dbError.message);
-      }
-    }
+    // Salvar no banco (que também atualiza a memória interna)
+    await saveProductToDb(updatedProduct);
 
     return NextResponse.json(updatedProduct);
   } catch (error) {

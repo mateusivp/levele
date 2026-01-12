@@ -30,6 +30,8 @@ function AdminDashboardContent() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [notifications, setNotifications] = useState<{id: string, message: string, time: string}[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [dbStatus, setDbStatus] = useState<{ connected: boolean, message: string, tablesReady?: boolean } | null>(null);
+  const [isInitializingDb, setIsInitializingDb] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const addNotification = (message: string) => {
@@ -96,6 +98,27 @@ function AdminDashboardContent() {
       }
     } catch (error) {
       console.error("Erro ao salvar categoria", error);
+    }
+  };
+
+  const handleInitializeDb = async () => {
+    if (!confirm("Isso irá criar as tabelas necessárias no seu banco de dados Vercel Postgres. Deseja continuar?")) return;
+    
+    setIsInitializingDb(true);
+    try {
+      const res = await fetch("/api/init-db");
+      const data = await res.json();
+      
+      if (data.success) {
+        alert("Banco de dados inicializado com sucesso!");
+        fetchData(); // Recarrega status
+      } else {
+        alert("Erro: " + data.error);
+      }
+    } catch (error) {
+      alert("Falha ao inicializar banco de dados.");
+    } finally {
+      setIsInitializingDb(false);
     }
   };
 
@@ -195,6 +218,13 @@ function AdminDashboardContent() {
     
     setIsLoading(true);
     try {
+      // Verificar status do banco de dados primeiro
+      const dbRes = await fetch("/api/db-status", { cache: 'no-store' });
+      if (dbRes.ok) {
+        const dbData = await dbRes.json();
+        setDbStatus(dbData);
+      }
+
       const res = await fetch(`/api/admin/data?t=${Date.now()}`, { 
         cache: 'no-store', 
         signal: controller.signal 
@@ -1263,9 +1293,48 @@ function AdminDashboardContent() {
 
         {activeTab === 'dashboard' && (
           <div className="space-y-8">
-            <div>
-              <h1 className="text-3xl font-bold">Dashboard</h1>
-              <p className="text-muted-foreground">Visão geral do seu negócio.</p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold">Dashboard</h1>
+                <p className="text-muted-foreground">Visão geral do seu negócio.</p>
+              </div>
+
+              {/* Status do Banco de Dados */}
+              <div className={`p-4 rounded-xl border flex flex-col gap-2 min-w-[300px] ${
+                dbStatus?.connected 
+                  ? 'bg-green-500/5 border-green-500/20' 
+                  : 'bg-destructive/5 border-destructive/20'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${dbStatus?.connected ? 'bg-green-500' : 'bg-destructive'}`} />
+                    <span className="text-sm font-bold">
+                      {dbStatus?.connected ? 'Banco de Dados Conectado' : 'Banco de Dados Desconectado'}
+                    </span>
+                  </div>
+                  {!dbStatus?.connected && (
+                    <button 
+                      onClick={handleInitializeDb}
+                      disabled={isInitializingDb}
+                      className="text-xs bg-primary text-primary-foreground px-3 py-1 rounded-lg font-bold hover:opacity-90 disabled:opacity-50 transition-all"
+                    >
+                      {isInitializingDb ? 'Inicializando...' : 'Configurar Agora'}
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {dbStatus?.message || "Verificando conexão com o banco de dados..."}
+                </p>
+                {dbStatus?.connected && !dbStatus.tablesReady && (
+                  <button 
+                    onClick={handleInitializeDb}
+                    disabled={isInitializingDb}
+                    className="w-full mt-1 text-xs bg-primary/10 text-primary border border-primary/20 px-3 py-1.5 rounded-lg font-bold hover:bg-primary/20 transition-all"
+                  >
+                    {isInitializingDb ? 'Criando tabelas...' : 'Criar Tabelas Faltantes'}
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
