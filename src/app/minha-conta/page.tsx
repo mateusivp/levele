@@ -831,27 +831,6 @@ export default function MinhaContaPage() {
     }
   };
 
-  const handleCepBlur = async () => {
-    const cleanCep = formData.cep.replace(/\D/g, "");
-    if (cleanCep.length === 8) {
-      try {
-        const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-        const data = await response.json();
-        if (!data.erro) {
-          setFormData(prev => ({
-            ...prev,
-            street: data.logradouro,
-            neighborhood: data.bairro,
-            city: data.localidade,
-            state: data.uf
-          }));
-        }
-      } catch (error) {
-        console.error("Erro ao buscar CEP", error);
-      }
-    }
-  };
-
   const fetchOrders = async (phone: string) => {
     try {
       const res = await fetch(`/api/orders?phone=${encodeURIComponent(phone)}`);
