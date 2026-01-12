@@ -2,7 +2,7 @@ import { formatPrice, slugify } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { Product } from "@/types";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, Package } from "lucide-react";
 
 interface ProductCardProps {
   product: Product;
@@ -12,12 +12,18 @@ export default function ProductCard({ product }: ProductCardProps) {
   return (
     <div className="group border rounded-xl overflow-hidden hover:shadow-lg transition-shadow bg-card">
       <Link href={`/produto/${product.slug}`} className="block relative aspect-square overflow-hidden">
-        <Image
-          src={product.image}
-          alt={product.name}
-          fill
-          className="object-cover group-hover:scale-105 transition-transform duration-300"
-        />
+        {product.image ? (
+          <Image
+            src={product.image}
+            alt={product.name}
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-muted">
+            <Package className="h-12 w-12 text-muted-foreground/20" />
+          </div>
+        )}
       </Link>
       <div className="p-6">
         <div className="mb-2">
@@ -34,7 +40,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           </h2>
         </Link>
         <div 
-          className="text-muted-foreground text-sm line-clamp-2 mb-4" 
+          className="text-muted-foreground text-sm line-clamp-2 mb-4 tiptap" 
           dangerouslySetInnerHTML={{ __html: product.description }} 
         />
         <div className="flex items-center justify-between">

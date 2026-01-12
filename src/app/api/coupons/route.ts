@@ -1,45 +1,46 @@
 import { NextResponse } from "next/server";
 import { Coupon } from "@/types";
+import { getCouponsFromDb, saveCouponToDb, deleteCouponFromDb } from "@/lib/db";
 
-// Simulação de banco de dados em memória
-let dbCoupons: Coupon[] = [
-  { code: 'PRIMEIRACOMPRA', discountType: 'percentage', value: 10 },
-  { code: 'LEVELE20', discountType: 'fixed', value: 20 },
-];
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  return NextResponse.json(dbCoupons);
+  try {
+    const coupons = await getCouponsFromDb();
+    return NextResponse.json(coupons);
+  } catch (error) {
+    return NextResponse.json({ error: "Erro ao buscar cupons" }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
   try {
     const coupon: Coupon = await request.json();
     
-    // Validar se o cupom já existe
-    if (dbCoupons.some(c => c.code.toUpperCase() === coupon.code.toUpperCase())) {
-      return NextResponse.json({ error: "Cupom já existe" }, { status: 400 });
+    if (!coupon.code) {
+      return NextResponse.json({ error: "Código do cupom é obrigatório" }, { status: 400 });
     }
 
-    const newCoupon = {
-      ...coupon,
-      code: coupon.code.toUpperCase()
-    };
-    
-    dbCoupons.push(newCoupon);
-    console.log(`[Coupons API] Cupom criado: ${newCoupon.code}`);
-    return NextResponse.json(newCoupon, { status: 201 });
+    await saveCouponToDb(coupon);
+    console.log(`[Coupons API] Cupom salvo/atualizado: ${coupon.code}`);
+    return NextResponse.json({ success: true }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: "Erro ao criar cupom" }, { status: 500 });
+    console.error("Erro ao salvar cupom:", error);
+    return NextResponse.json({ error: "Erro ao salvar cupom" }, { status: 500 });
   }
 }
 
 export async function DELETE(request: Request) {
   try {
     const { code } = await request.json();
-    dbCoupons = dbCoupons.filter(c => c.code !== code);
+    if (!code) {
+      return NextResponse.json({ error: "Código do cupom é obrigatório" }, { status: 400 });
+    }
+    await deleteCouponFromDb(code);
     console.log(`[Coupons API] Cupom removido: ${code}`);
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("Erro ao remover cupom:", error);
     return NextResponse.json({ error: "Erro ao remover cupom" }, { status: 500 });
   }
 }

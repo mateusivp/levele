@@ -3,14 +3,30 @@ import { NextResponse } from "next/server";
 import { dbOrders } from "@/lib/db";
 import pool from "@/lib/db_connection";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const phone = searchParams.get('phone');
+
   if (!pool) {
     console.warn("Conexão com Postgres não configurada. Retornando dados em memória.");
+    if (phone) {
+      return NextResponse.json(dbOrders.filter(o => o.customer.phone === phone));
+    }
     return NextResponse.json(dbOrders);
   }
 
   try {
-    const { rows } = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
+    let query = 'SELECT * FROM orders';
+    const params = [];
+
+    if (phone) {
+      query += ' WHERE customer_phone = $1';
+      params.push(phone);
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const { rows } = await pool.query(query, params);
     const orders = rows.map((row: any) => ({
       id: row.id,
       customer: {
@@ -57,6 +73,7 @@ export async function POST(request: Request) {
 
     if (pool) {
       try {
+        // Iniciar transação ou salvar pedido
         await pool.query(
           `INSERT INTO orders (id, customer_name, customer_email, customer_phone, customer_cpf, 
           address_street, address_number, address_complement, address_neighborhood, address_city, 
@@ -80,8 +97,32 @@ export async function POST(request: Request) {
             JSON.stringify(newOrder.items)
           ]
         );
+
+        // Criar ou atualizar cliente automaticamente
+        // Usamos INSERT ... ON CONFLICT (phone) DO UPDATE para garantir que o cliente exista
+        // e seus pontos/cashback sejam atualizados (simulação básica)
+        const cashbackAmount = newOrder.total * 0.05; // 5% de cashback
+        const pointsEarned = Math.floor(newOrder.total);
+
+        await pool.query(
+          `INSERT INTO customers (id, name, email, phone, cashback, points) 
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (phone) DO UPDATE SET 
+           name = EXCLUDED.name,
+           email = EXCLUDED.email,
+           cashback = customers.cashback + EXCLUDED.cashback,
+           points = customers.points + EXCLUDED.points`,
+          [
+            `CUST-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+            newOrder.customer.name,
+            newOrder.customer.email || "",
+            newOrder.customer.phone,
+            cashbackAmount,
+            pointsEarned
+          ]
+        );
       } catch (error) {
-        console.error("Erro ao salvar pedido no Postgres:", error);
+        console.error("Erro ao salvar pedido ou cliente no Postgres:", error);
       }
     } else {
       console.warn("Conexão com Postgres não configurada. Salvando apenas em memória.");

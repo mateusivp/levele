@@ -2,7 +2,7 @@ import { formatPrice, slugify } from "@/lib/utils";
 import { constructMetadata } from "@/lib/seo";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ShoppingCart, ShieldCheck, Truck, RotateCcw, Star, ChevronRight, MessageCircle, Plus } from "lucide-react";
+import { ShoppingCart, ShieldCheck, Truck, RotateCcw, Star, ChevronRight, MessageCircle, Plus, Package } from "lucide-react";
 import Link from "next/link";
 import { Product } from "@/types";
 import ReviewSection from "@/components/ReviewSection";
@@ -128,7 +128,7 @@ export default async function ProductPage({ params }: PageProps) {
             </span>
           </div>
 
-          <div className="text-muted-foreground leading-relaxed mb-8 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: product.description }} />
+          <div className="text-muted-foreground leading-relaxed mb-8 tiptap max-w-none" dangerouslySetInnerHTML={{ __html: product.description }} />
 
           {videoEmbedUrl && (
             <div className="mb-8 aspect-video rounded-2xl overflow-hidden border bg-black shadow-lg">
@@ -167,7 +167,13 @@ export default async function ProductPage({ params }: PageProps) {
                 {/* Produto 1 */}
                 <div className="relative group">
                   <div className="relative h-28 w-28 md:h-32 md:w-32 rounded-2xl overflow-hidden border-2 border-white shadow-md bg-white">
-                    <Image src={product.image} alt={product.name} fill className="object-contain p-2" />
+                    {product.image ? (
+                      <Image src={product.image} alt={product.name} fill className="object-contain p-2" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-muted">
+                        <Package className="h-10 w-10 text-muted-foreground/20" />
+                      </div>
+                    )}
                   </div>
                   <div className="absolute -bottom-2 -right-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-1 rounded-lg shadow-lg">
                     Item 1
@@ -182,7 +188,13 @@ export default async function ProductPage({ params }: PageProps) {
                 {/* Produto 2 */}
                 <div className="relative group">
                   <div className="relative h-28 w-28 md:h-32 md:w-32 rounded-2xl overflow-hidden border-2 border-primary/20 shadow-md bg-white">
-                    <Image src={upsellProduct.image} alt={upsellProduct.name} fill className="object-contain p-2" />
+                    {upsellProduct.image ? (
+                      <Image src={upsellProduct.image} alt={upsellProduct.name} fill className="object-contain p-2" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-muted">
+                        <Package className="h-10 w-10 text-muted-foreground/20" />
+                      </div>
+                    )}
                   </div>
                   <div className="absolute -bottom-2 -right-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-1 rounded-lg shadow-lg">
                     Item 2

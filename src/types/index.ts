@@ -15,7 +15,8 @@ export interface Product {
     keywords: string[];
   };
   upsellProductId?: string; // ID do produto sugerido como upsell
-  orderBumpId?: string; // ID do produto sugerido como order bump
+  orderBumpId?: string; // Mantido para compatibilidade legado
+  orderBumpIds?: string[]; // IDs dos produtos sugeridos como order bump (até 3)
   postPurchaseUpsell?: {
     productId: string;
     price: number;
@@ -100,6 +101,14 @@ export interface AbandonedCart {
     phone: string;
   };
   total: number;
-  createdAt: string;
   status: 'Pendente' | 'Recuperado';
+  createdAt: string;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  created_at?: string;
 }

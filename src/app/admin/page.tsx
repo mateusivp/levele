@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { Order, Coupon, Product } from "@/types";
-import { formatPrice } from "@/lib/utils";
+import { useState, useEffect, Suspense, useRef } from "react";
+import { Order, Coupon, Product, Category } from "@/types";
+import { formatPrice, slugify } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Edit, Trash2, LayoutDashboard, Package, LogOut, ShoppingBag, TrendingUp, Users, Clock, Eye, Menu, X, Copy, Check, Search, RefreshCw, ArrowLeft, Settings, Edit2, MapPin, Phone, User, Calendar, CreditCard, History, Tag, Percent, Star, MessageSquare, ThumbsUp, ThumbsDown, ShoppingCart } from "lucide-react";
+import { Plus, Edit, Trash2, LayoutDashboard, Package, LogOut, ShoppingBag, TrendingUp, Users, Clock, Eye, Menu, X, Copy, Check, Search, RefreshCw, ArrowLeft, Settings, Edit2, MapPin, Phone, User, Calendar, CreditCard, History, Tag, Percent, Star, MessageSquare, ThumbsUp, ThumbsDown, ShoppingCart, FolderTree, Loader2 } from "lucide-react";
 
 function AdminDashboardContent() {
   const router = useRouter();
@@ -14,6 +14,7 @@ function AdminDashboardContent() {
   const initialTab = searchParams.get('tab') as 'dashboard' | 'produtos' | 'pedidos' | 'cupons' | 'avaliacoes' || 'dashboard';
   
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [variations, setVariations] = useState<{ id: string; name: string; price: number; image?: string }[]>([]);
   const [newVariation, setNewVariation] = useState({ name: '', price: 0 });
   const [orders, setOrders] = useState<Order[]>([]);
@@ -21,7 +22,7 @@ function AdminDashboardContent() {
   const [abandonedCarts, setAbandonedCarts] = useState<any[]>([]);
   const [visits, setVisits] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'produtos' | 'pedidos' | 'cupons' | 'avaliacoes' | 'abandonados'>(initialTab as any || 'dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'produtos' | 'pedidos' | 'cupons' | 'avaliacoes' | 'abandonados' | 'categorias'>(initialTab as any || 'dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -29,6 +30,7 @@ function AdminDashboardContent() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [notifications, setNotifications] = useState<{id: string, message: string, time: string}[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const addNotification = (message: string) => {
     const newNotif = {
@@ -47,28 +49,107 @@ function AdminDashboardContent() {
     value: 0,
   });
 
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean, type: 'category' | 'product' | 'coupon', id: string, name: string }>({
+    isOpen: false,
+    type: 'category',
+    id: '',
+    name: ''
+  });
+  const [newCategory, setNewCategory] = useState({
+    name: "",
+    description: ""
+  });
+
+  const handleSaveCategory = async () => {
+    if (!newCategory.name) {
+      alert("O nome da categoria é obrigatório");
+      return;
+    }
+    
+    try {
+      const categoryToSave = {
+        id: editingCategory?.id || Math.random().toString(36).substr(2, 9),
+        name: newCategory.name,
+        slug: slugify(newCategory.name),
+        description: newCategory.description
+      };
+
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(categoryToSave)
+      });
+
+      if (res.ok) {
+        addNotification(editingCategory ? "Categoria atualizada!" : "Categoria criada!");
+        setIsAddingCategory(false);
+        setEditingCategory(null);
+        setNewCategory({ name: "", description: "" });
+        
+        // Pequeno atraso para garantir que o backend processou tudo
+        setTimeout(() => {
+          fetchData();
+        }, 500);
+      }
+    } catch (error) {
+      console.error("Erro ao salvar categoria", error);
+    }
+  };
+
+  const handleDeleteCategory = (id: string, name: string) => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'category',
+      id,
+      name
+    });
+  };
+
+  const executeDelete = async () => {
+    const { type, id } = deleteConfirm;
+    
+    try {
+      if (type === 'category') {
+        const res = await fetch(`/api/categories?id=${id}`, {
+          method: "DELETE"
+        });
+        if (res.ok) {
+          addNotification("Categoria excluída!");
+          fetchData();
+        }
+      } else if (type === 'product') {
+        const res = await fetch(`/api/products?id=${id}`, {
+          method: "DELETE",
+        });
+        if (res.ok) {
+          addNotification("Produto excluído!");
+          setProducts(products.filter(p => p.id !== id));
+        }
+      } else if (type === 'coupon') {
+        const res = await fetch("/api/coupons", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: id }),
+        });
+        if (res.ok) {
+          addNotification("Cupom excluído!");
+          setCoupons(coupons.filter(c => c.code !== id));
+        }
+      }
+    } catch (error) {
+      console.error(`Erro ao deletar ${type}`, error);
+      addNotification(`Erro ao excluir ${type === 'coupon' ? 'cupom' : type === 'category' ? 'categoria' : 'produto'}`);
+    } finally {
+      setDeleteConfirm({ ...deleteConfirm, isOpen: false });
+    }
+  };
+
   const handleOpenOrderDetails = (order: Order) => {
     setSelectedOrder(order);
     setIsOrderModalOpen(true);
-  };
-
-  useEffect(() => {
-    const tab = searchParams.get('tab');
-    if (tab && (tab === 'dashboard' || tab === 'produtos' || tab === 'pedidos' || tab === 'cupons' || tab === 'avaliacoes' || tab === 'abandonados')) {
-      setActiveTab(tab as any);
-      // Sempre buscar dados novos ao mudar de aba via URL (redirecionamentos)
-      fetchData();
-    }
-  }, [searchParams]);
-
-  const handleTabChange = (tab: 'dashboard' | 'produtos' | 'pedidos' | 'cupons' | 'avaliacoes' | 'abandonados') => {
-    setActiveTab(tab);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('tab', tab);
-    router.push(`/admin?${params.toString()}`, { scroll: false });
-    
-    // Re-fetch data when switching tabs to ensure freshness
-    fetchData();
   };
 
   useEffect(() => {
@@ -77,49 +158,74 @@ function AdminDashboardContent() {
       router.push("/admin/login");
       return;
     }
-    console.log("[Admin] Dashboard carregado, buscando dados iniciais...");
+
+    const tab = searchParams.get('tab');
+    if (tab && (tab === 'dashboard' || tab === 'produtos' || tab === 'pedidos' || tab === 'cupons' || tab === 'avaliacoes' || tab === 'abandonados' || tab === 'categorias')) {
+      setActiveTab(tab as any);
+    }
+    
     fetchData();
+  }, [searchParams, router]);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []);
 
+  const handleTabChange = (tab: 'dashboard' | 'produtos' | 'pedidos' | 'cupons' | 'avaliacoes' | 'abandonados' | 'categorias') => {
+    if (tab === activeTab) return;
+    
+    setActiveTab(tab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', tab);
+    router.push(`/admin?${params.toString()}`, { scroll: false });
+  };
+
   const fetchData = async () => {
+    // Cancelar requisições anteriores se houver
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    
     setIsLoading(true);
     try {
-      const [resProd, resOrders, resCoupons, resAbandoned, resAnalytics] = await Promise.all([
-        fetch("/api/products", { cache: 'no-store' }),
-        fetch("/api/orders", { cache: 'no-store' }),
-        fetch("/api/coupons", { cache: 'no-store' }),
-        fetch("/api/abandoned", { cache: 'no-store' }),
-        fetch("/api/analytics", { cache: 'no-store' })
-      ]);
-      const dataProd = await resProd.json();
-      const dataOrders = await resOrders.json();
-      const dataCoupons = await resCoupons.json();
-      const dataAbandoned = await resAbandoned.json();
-      const dataAnalytics = await resAnalytics.json();
-      setProducts(dataProd);
-      setOrders(dataOrders);
-      setCoupons(dataCoupons);
-      setAbandonedCarts(dataAbandoned);
-      setVisits(dataAnalytics.visits || 0);
-      console.log(`[Admin] Dados carregados: ${dataProd.length} produtos, ${dataOrders.length} pedidos, ${dataAbandoned.length} abandonos, ${dataAnalytics.visits} visitas.`);
-    } catch (error) {
-      console.error("Erro ao buscar dados", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchCoupons = async () => {
-    try {
-      const res = await fetch("/api/coupons");
+      const res = await fetch(`/api/admin/data?t=${Date.now()}`, { 
+        cache: 'no-store', 
+        signal: controller.signal 
+      });
+      
+      if (!res.ok) throw new Error("Erro ao carregar dados");
+      
       const data = await res.json();
-      setCoupons(data);
-    } catch (error) {
-      console.error("Erro ao buscar cupons", error);
+      console.log("Dados recebidos do admin:", data.categories);
+      
+      setProducts(data.products || []);
+      setOrders(data.orders || []);
+      setCoupons(data.coupons || []);
+      setAbandonedCarts(data.abandonedCarts || []);
+      setVisits(data.visits || 0);
+      setCategories(data.categories || []);
+      
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        // Silencioso para abortos
+      } else {
+        console.error("Erro ao buscar dados", error);
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
     }
   };
 
-  const handleAddCoupon = async (e: React.FormEvent) => {
+  const handleSaveCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const res = await fetch("/api/coupons", {
@@ -128,33 +234,28 @@ function AdminDashboardContent() {
         body: JSON.stringify(newCoupon),
       });
       if (res.ok) {
-        await fetchCoupons();
+        addNotification(editingCoupon ? "Cupom atualizado!" : "Cupom criado!");
+        fetchData();
         setIsAddingCoupon(false);
+        setEditingCoupon(null);
         setNewCoupon({ code: "", discountType: "percentage", value: 0 });
       } else {
         const error = await res.json();
-        alert(error.error || "Erro ao criar cupom");
+        addNotification(error.error || "Erro ao salvar cupom");
       }
     } catch (error) {
-      console.error("Erro ao adicionar cupom", error);
+      console.error("Erro ao salvar cupom", error);
+      addNotification("Erro ao conectar com o servidor");
     }
   };
 
-  const handleDeleteCoupon = async (code: string) => {
-    if (confirm(`Excluir cupom ${code}?`)) {
-      try {
-        const res = await fetch("/api/coupons", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code }),
-        });
-        if (res.ok) {
-          setCoupons(coupons.filter(c => c.code !== code));
-        }
-      } catch (error) {
-        console.error("Erro ao deletar cupom", error);
-      }
-    }
+  const handleDeleteCoupon = (code: string) => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'coupon',
+      id: code,
+      name: code
+    });
   };
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
@@ -170,7 +271,6 @@ function AdminDashboardContent() {
         if (selectedOrder?.id === orderId) {
           setSelectedOrder(updatedOrder);
         }
-        console.log(`[Admin] Status do pedido ${orderId} atualizado para "${newStatus}".`);
         addNotification(`Pedido #${orderId.slice(-4)} atualizado para ${newStatus}`);
       }
     } catch (error) {
@@ -260,16 +360,6 @@ function AdminDashboardContent() {
     router.push("/admin/login");
   };
 
-  const fetchProducts = async () => {
-    try {
-      const res = await fetch("/api/products");
-      const data = await res.json();
-      setProducts(data);
-    } catch (error) {
-      console.error("Erro ao buscar produtos", error);
-    }
-  };
-
   const handleCopyLink = (slug: string, id: string) => {
     const url = `${window.location.origin}/produto/${slug}`;
     navigator.clipboard.writeText(url);
@@ -277,19 +367,13 @@ function AdminDashboardContent() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm("Tem certeza que deseja excluir este produto?")) {
-      try {
-        const res = await fetch(`/api/products?id=${id}`, {
-          method: "DELETE",
-        });
-        if (res.ok) {
-          setProducts(products.filter(p => p.id !== id));
-        }
-      } catch (error) {
-        console.error("Erro ao deletar produto", error);
-      }
-    }
+  const handleDelete = (id: string, name: string) => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'product',
+      id,
+      name
+    });
   };
 
   const filteredProducts = products.filter(p => 
@@ -299,6 +383,37 @@ function AdminDashboardContent() {
 
   return (
     <div className="flex min-h-screen bg-muted/20">
+      {/* Modal de Confirmação de Exclusão */}
+      {deleteConfirm.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-background border rounded-2xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+                <Trash2 className="w-6 h-6 text-destructive" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">Confirmar Exclusão</h3>
+              <p className="text-muted-foreground mb-6">
+                Tem certeza que deseja excluir {deleteConfirm.type === 'category' ? 'a categoria' : deleteConfirm.type === 'coupon' ? 'o cupom' : 'o produto'} <strong>"{deleteConfirm.name}"</strong>? Esta ação não pode ser desfeita.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteConfirm({ ...deleteConfirm, isOpen: false })}
+                  className="flex-1 px-4 py-2 border rounded-xl hover:bg-muted transition-colors font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={executeDelete}
+                  className="flex-1 px-4 py-2 bg-destructive text-white rounded-xl hover:bg-destructive/90 transition-colors font-medium"
+                >
+                  Excluir
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Detalhes do Pedido */}
       {isOrderModalOpen && selectedOrder && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -495,6 +610,13 @@ function AdminDashboardContent() {
                 Produtos
               </button>
               <button 
+                onClick={() => handleTabChange('categorias')}
+                className={`flex w-full items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'categorias' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+              >
+                <FolderTree className="h-5 w-5" />
+                Categorias
+              </button>
+              <button 
                 onClick={() => handleTabChange('cupons')}
                 className={`flex w-full items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'cupons' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
               >
@@ -562,6 +684,13 @@ function AdminDashboardContent() {
               >
                 <Package className="h-5 w-5" />
                 Produtos
+              </button>
+              <button 
+                onClick={() => { handleTabChange('categorias'); setIsMobileMenuOpen(false); }}
+                className={`flex w-full items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'categorias' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+              >
+                <FolderTree className="h-5 w-5" />
+                Categorias
               </button>
               <button 
                 onClick={() => { handleTabChange('cupons'); setIsMobileMenuOpen(false); }}
@@ -653,7 +782,12 @@ function AdminDashboardContent() {
                 <p className="text-muted-foreground">Gerencie seus códigos promocionais.</p>
               </div>
               <button 
-                onClick={() => setIsAddingCoupon(true)}
+                onClick={() => {
+                  setEditingCoupon(null);
+                  setNewCoupon({ code: "", discountType: "percentage", value: 0 });
+                  setIsAddingCoupon(true);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
                 className="bg-primary text-primary-foreground px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:opacity-90 transition-opacity"
               >
                 <Plus className="h-5 w-5" />
@@ -663,16 +797,17 @@ function AdminDashboardContent() {
 
             {isAddingCoupon && (
               <div className="bg-card p-6 rounded-xl border animate-in fade-in slide-in-from-top-4 duration-300">
-                <form onSubmit={handleAddCoupon} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <form onSubmit={handleSaveCoupon} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                   <div>
                     <label className="block text-sm font-medium mb-1">Código</label>
                     <input 
                       type="text" 
                       required
                       placeholder="EX: VERÃO20"
-                      className="w-full bg-background border rounded-lg px-4 py-2 uppercase"
+                      className="w-full bg-background border rounded-lg px-4 py-2 uppercase disabled:opacity-50"
                       value={newCoupon.code}
-                      onChange={e => setNewCoupon({...newCoupon, code: e.target.value})}
+                      onChange={e => setNewCoupon({...newCoupon, code: e.target.value.toUpperCase()})}
+                      disabled={!!editingCoupon}
                     />
                   </div>
                   <div>
@@ -702,11 +837,15 @@ function AdminDashboardContent() {
                       type="submit"
                       className="flex-1 bg-primary text-primary-foreground h-10 rounded-lg font-bold hover:opacity-90 transition-opacity"
                     >
-                      Salvar
+                      {editingCoupon ? 'Atualizar' : 'Salvar'}
                     </button>
                     <button 
                       type="button"
-                      onClick={() => setIsAddingCoupon(false)}
+                      onClick={() => {
+                        setIsAddingCoupon(false);
+                        setEditingCoupon(null);
+                        setNewCoupon({ code: "", discountType: "percentage", value: 0 });
+                      }}
                       className="flex-1 bg-muted h-10 rounded-lg font-bold hover:bg-muted/80 transition-colors"
                     >
                       Cancelar
@@ -741,13 +880,31 @@ function AdminDashboardContent() {
                         {coupon.discountType === 'percentage' ? `${coupon.value}%` : formatPrice(coupon.value)}
                       </td>
                       <td className="p-4 text-right">
-                        <button 
-                          onClick={() => handleDeleteCoupon(coupon.code)}
-                          className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-                          title="Excluir Cupom"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => {
+                              setEditingCoupon(coupon);
+                              setNewCoupon({ 
+                                code: coupon.code, 
+                                discountType: coupon.discountType, 
+                                value: coupon.value 
+                              });
+                              setIsAddingCoupon(true);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                            title="Editar Cupom"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteCoupon(coupon.code)}
+                            className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                            title="Excluir Cupom"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -760,6 +917,147 @@ function AdminDashboardContent() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'categorias' && (
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold">Categorias</h1>
+                <p className="text-muted-foreground">Gerencie as categorias de produtos da sua loja.</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setEditingCategory(null);
+                  setNewCategory({ name: "", description: "" });
+                  setIsAddingCategory(true);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95"
+              >
+                <Plus className="h-5 w-5" />
+                NOVA CATEGORIA
+              </button>
+            </div>
+
+            {isAddingCategory && (
+              <div className="bg-card p-6 rounded-2xl border-2 border-primary/20 shadow-xl animate-in slide-in-from-top duration-300">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <FolderTree className="h-5 w-5 text-primary" />
+                    {editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
+                  </h2>
+                  <button onClick={() => setIsAddingCategory(false)} className="p-2 hover:bg-muted rounded-full">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-bold mb-2">Nome da Categoria</label>
+                    <input 
+                      type="text"
+                      value={newCategory.name}
+                      onChange={(e) => setNewCategory({...newCategory, name: e.target.value})}
+                      className="w-full h-12 px-4 rounded-xl border bg-background focus:ring-2 focus:ring-primary outline-none transition-all"
+                      placeholder="Ex: Eletrônicos, Casa e Jardim..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-2">Descrição (Opcional)</label>
+                    <input 
+                      type="text"
+                      value={newCategory.description}
+                      onChange={(e) => setNewCategory({...newCategory, description: e.target.value})}
+                      className="w-full h-12 px-4 rounded-xl border bg-background focus:ring-2 focus:ring-primary outline-none transition-all"
+                      placeholder="Breve descrição da categoria"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 mt-8">
+                  <button 
+                    onClick={() => setIsAddingCategory(false)}
+                    className="px-6 py-2 rounded-xl font-bold hover:bg-muted transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={handleSaveCategory}
+                    disabled={!newCategory.name}
+                    className="bg-primary text-primary-foreground px-8 py-2 rounded-xl font-bold hover:bg-primary/90 transition-all disabled:opacity-50"
+                  >
+                    {editingCategory ? 'SALVAR ALTERAÇÕES' : 'CRIAR CATEGORIA'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-muted/50 border-b">
+                      <th className="p-4 font-bold text-sm uppercase tracking-wider">Nome</th>
+                      <th className="p-4 font-bold text-sm uppercase tracking-wider">Slug</th>
+                      <th className="p-4 font-bold text-sm uppercase tracking-wider">Produtos</th>
+                      <th className="p-4 font-bold text-sm uppercase tracking-wider text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {categories.length > 0 ? (
+                      categories.map((cat) => (
+                        <tr key={cat.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="p-4">
+                            <div className="font-bold">{cat.name}</div>
+                            {cat.description && <div className="text-xs text-muted-foreground">{cat.description}</div>}
+                          </td>
+                          <td className="p-4">
+                            <code className="text-xs bg-muted px-2 py-1 rounded">/{cat.slug}</code>
+                          </td>
+                          <td className="p-4 text-sm font-medium">
+                            {products.filter(p => p.category === cat.name).length} itens
+                          </td>
+                          <td className="p-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button 
+                                onClick={() => {
+                                  setEditingCategory(cat);
+                                  setNewCategory({ name: cat.name, description: cat.description || "" });
+                                  setIsAddingCategory(true);
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                title="Editar"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDeleteCategory(cat.id, cat.name);
+                                }}
+                                className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                                title="Excluir"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="p-12 text-center text-muted-foreground">
+                          <FolderTree className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                          <p>Nenhuma categoria cadastrada.</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
@@ -1279,7 +1577,11 @@ function AdminDashboardContent() {
                               <Edit className="h-5 w-5" />
                             </Link>
                             <button 
-                              onClick={() => handleDelete(product.id)}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleDelete(product.id, product.name);
+                              }}
                               className="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-destructive transition-colors"
                             >
                               <Trash2 className="h-5 w-5" />

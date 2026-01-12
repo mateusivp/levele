@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ShoppingCart, Menu, X, Package } from "lucide-react";
+import { ShoppingCart, Menu, X, Package, User } from "lucide-react";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -22,6 +22,10 @@ export default function Navbar() {
             </Link>
             <Link href="/categorias" className="text-sm font-medium hover:text-primary transition-colors">
               Categorias
+            </Link>
+            <Link href="/minha-conta" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Minha Conta
             </Link>
             <Link href="/finalizar" className="relative group p-2">
               <ShoppingCart className="h-6 w-6 group-hover:text-primary transition-colors" />
@@ -68,6 +72,14 @@ export default function Navbar() {
             >
               <Package className="h-5 w-5 text-primary" />
               Categorias
+            </Link>
+            <Link 
+              href="/minha-conta" 
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 p-4 text-lg font-medium hover:bg-muted rounded-xl transition-colors"
+            >
+              <User className="h-5 w-5 text-primary" />
+              Minha Conta
             </Link>
             <Link 
               href="/finalizar" 

@@ -6,7 +6,7 @@ import * as z from "zod";
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Save, Image as ImageIcon, Eye, Upload } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Image as ImageIcon, Eye, Upload, Plus, Trash2 } from "lucide-react";
 import RichTextEditor from "@/components/RichTextEditor";
 import { slugify, compressImage } from "@/lib/utils";
 
@@ -24,10 +24,11 @@ const productSchema = z.object({
   seoDescription: z.string().min(10, "Descrição SEO deve ser detalhada"),
   upsellProductId: z.string().optional(),
   orderBumpId: z.string().optional(),
+  orderBumpIds: z.array(z.string()).max(3, "No máximo 3 order bumps").optional(),
   postPurchaseUpsell: z.object({
     productId: z.string().optional(),
     price: z.coerce.number().min(0).optional(),
-    quantity: z.coerce.number().min(1).optional(),
+    quantity: z.coerce.number().min(1).optional().or(z.literal("")).or(z.null()),
     title: z.string().optional(),
     description: z.string().optional(),
     active: z.boolean(),
@@ -49,6 +50,7 @@ export default function EditProductPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [productSlug, setProductSlug] = useState("");
   const [allProducts, setAllProducts] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
 
   const {
     register,
@@ -66,21 +68,27 @@ export default function EditProductPage() {
   useEffect(() => {
     const fetchProductAndList = async () => {
       try {
-        // Buscar apenas o produto específico para editar
-        const productRes = await fetch(`/api/products/${id}`, { cache: 'no-store' });
+        // Buscar dados em paralelo: produto, lista de produtos e categorias
+        const [productRes, listRes, catsRes] = await Promise.all([
+          fetch(`/api/products/${id}`, { cache: 'no-store' }),
+          fetch("/api/products", { cache: 'no-store' }),
+          fetch("/api/categories", { cache: 'no-store' })
+        ]);
+
         if (!productRes.ok) throw new Error("Falha ao carregar produto");
         const product = await productRes.json();
-
-        // Buscar a lista de produtos apenas para o dropdown de upsell
-        const listRes = await fetch("/api/products", { cache: 'no-store' });
         const products = await listRes.json();
+        const cats = await catsRes.json();
+
         setAllProducts(products);
+        setCategories(cats);
         
         if (product) {
           console.log(`[Editar Produto] Dados do produto "${product.name}" carregados para edição.`);
           setProductSlug(product.slug);
-          const standardCategories = ["Calçados", "Eletrônicos", "Acessórios", "Vestuário"];
-          const isCustomCategory = !standardCategories.includes(product.category);
+          
+          const standardCategoryNames = cats.map((c: any) => c.name);
+          const isCustomCategory = !standardCategoryNames.includes(product.category);
 
           reset({
             name: product.name,
@@ -96,10 +104,11 @@ export default function EditProductPage() {
             seoDescription: product.seo.description,
             upsellProductId: product.upsellProductId || "",
             orderBumpId: product.orderBumpId || "",
+            orderBumpIds: product.orderBumpIds || (product.orderBumpId ? [product.orderBumpId] : []),
             postPurchaseUpsell: product.postPurchaseUpsell || {
               productId: "",
               price: 0,
-              quantity: 1,
+              quantity: undefined,
               title: "",
               description: "",
               active: false
@@ -148,7 +157,26 @@ export default function EditProductPage() {
     console.log("[Editar Produto] Iniciando atualização...");
     
     try {
-      const category = data.category === "Outra" ? data.customCategory || "Geral" : data.category;
+      let finalCategory = data.category;
+      
+      // Se for uma nova categoria, salva ela no banco primeiro
+      if (data.category === "Outra" && data.customCategory) {
+        finalCategory = data.customCategory;
+        const newCat = {
+          id: Math.random().toString(36).substring(2, 9),
+          name: data.customCategory,
+          slug: slugify(data.customCategory),
+        };
+        
+        console.log("[Editar Produto] Criando nova categoria:", newCat.name);
+        await fetch("/api/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newCat),
+        });
+      } else if (data.category === "Outra") {
+        finalCategory = "Geral";
+      }
       
       const productData = {
         id,
@@ -158,7 +186,7 @@ export default function EditProductPage() {
         image: data.image,
         images: data.images?.filter(img => img.length > 0),
         videoUrl: data.videoUrl,
-        category: category,
+        category: finalCategory,
         active: data.active,
         seo: {
           title: data.seoTitle,
@@ -167,6 +195,7 @@ export default function EditProductPage() {
         },
         upsellProductId: data.upsellProductId,
         orderBumpId: data.orderBumpId,
+        orderBumpIds: data.orderBumpIds?.filter(id => id !== ""),
         postPurchaseUpsell: data.postPurchaseUpsell?.productId ? data.postPurchaseUpsell : undefined,
       };
 
@@ -343,17 +372,41 @@ export default function EditProductPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Produto para Order Bump (Oferta no Checkout)</label>
-                <select
-                  {...register("orderBumpId")}
-                  className="w-full h-12 px-4 rounded-lg border bg-background focus:ring-2 focus:ring-primary outline-none transition-all"
-                >
-                  <option value="">Nenhum</option>
-                  {allProducts.filter(p => p.id !== id).map(p => (
-                    <option key={p.id} value={p.id}>{p.name} (R$ {p.price})</option>
+                <label className="block text-sm font-medium mb-1">Produtos para Order Bump (Oferta no Checkout - Máx 3)</label>
+                <div className="space-y-2">
+                  {[0, 1, 2].map((index) => (
+                    <div key={index} className="flex gap-2">
+                      <select
+                        value={watch("orderBumpIds")?.[index] || ""}
+                        onChange={(e) => {
+                          const currentIds = [...(watch("orderBumpIds") || [])];
+                          currentIds[index] = e.target.value;
+                          setValue("orderBumpIds", currentIds.filter(id => id !== "" || index < currentIds.length));
+                        }}
+                        className="flex-1 h-10 px-3 rounded-lg border bg-background focus:ring-2 focus:ring-primary outline-none transition-all text-sm"
+                      >
+                        <option value="">Nenhum</option>
+                        {allProducts.filter(p => p.id !== id).map(p => (
+                          <option key={p.id} value={p.id}>{p.name} (R$ {p.price})</option>
+                        ))}
+                      </select>
+                      {watch("orderBumpIds")?.[index] && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentIds = [...(watch("orderBumpIds") || [])];
+                            currentIds[index] = "";
+                            setValue("orderBumpIds", currentIds.filter(id => id !== ""));
+                          }}
+                          className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   ))}
-                </select>
-                <p className="text-[10px] text-muted-foreground mt-1">Exibido como uma oferta rápida de um clique no checkout.</p>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">Exibido como ofertas rápidas de um clique no checkout (antes do botão de pagar).</p>
               </div>
             </div>
               <div>
@@ -363,10 +416,11 @@ export default function EditProductPage() {
                   className="w-full h-11 px-4 rounded-lg border bg-background focus:ring-2 focus:ring-primary outline-none mb-2"
                 >
                   <option value="">Selecione...</option>
-                  <option value="Calçados">Calçados</option>
-                  <option value="Eletrônicos">Eletrônicos</option>
-                  <option value="Acessórios">Acessórios</option>
-                  <option value="Vestuário">Vestuário</option>
+                  {categories.map((cat: any) => (
+                    <option key={cat.id} value={cat.name}>
+                      {cat.name}
+                    </option>
+                  ))}
                   <option value="Outra">Outra (Criar Nova)</option>
                 </select>
                 {watch("category") === "Outra" && (

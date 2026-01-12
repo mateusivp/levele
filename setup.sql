@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS products (
     seo_description TEXT,
     upsell_product_id VARCHAR(255),
     order_bump_id VARCHAR(255),
+    order_bump_ids JSON,
     variations JSON,
     post_purchase_upsell JSON,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -64,10 +65,32 @@ CREATE TABLE IF NOT EXISTS abandoned_carts (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS categories (
+    id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) UNIQUE NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS analytics (
     id INT PRIMARY KEY AUTO_INCREMENT,
     metric_name VARCHAR(100) UNIQUE,
     metric_value INT DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS customers (
+    id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
+    phone VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255), -- NULL inicialmente (zerada)
+    cashback DECIMAL(10, 2) DEFAULT 0.00,
+    points INT DEFAULT 0,
+    level VARCHAR(50) DEFAULT 'Bronze',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 

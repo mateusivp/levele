@@ -24,6 +24,7 @@ const productSchema = z.object({
   seoDescription: z.string().min(10, "Descrição SEO deve ser detalhada"),
   upsellProductId: z.string().optional(),
   orderBumpId: z.string().optional(),
+  orderBumpIds: z.array(z.string()).max(3, "No máximo 3 order bumps").optional(),
   variations: z.array(z.object({
     id: z.string(),
     name: z.string().min(1, "Nome da variação é obrigatório"),
@@ -32,7 +33,7 @@ const productSchema = z.object({
   postPurchaseUpsell: z.object({
     productId: z.string().optional(),
     price: z.coerce.number().min(0).optional(),
-    quantity: z.coerce.number().min(1).optional(),
+    quantity: z.coerce.number().min(1).optional().or(z.literal("")).or(z.null()),
     title: z.string().optional(),
     description: z.string().optional(),
     active: z.boolean(),
@@ -47,6 +48,7 @@ export default function NewProductPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allProducts, setAllProducts] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
 
   const {
     register,
@@ -61,6 +63,15 @@ export default function NewProductPage() {
       active: true,
       variations: [],
       images: ["", "", ""], // Inicia com 3 campos de imagem adicional por padrão
+      category: "",
+      postPurchaseUpsell: {
+        productId: "",
+        price: 0,
+        quantity: undefined,
+        title: "",
+        description: "",
+        active: false
+      }
     }
   });
 
@@ -74,16 +85,21 @@ export default function NewProductPage() {
   const selectedCategory = watch("category");
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch("/api/products");
-        const products = await res.json();
+        const [resProd, resCats] = await Promise.all([
+          fetch("/api/products"),
+          fetch("/api/categories")
+        ]);
+        const products = await resProd.json();
+        const cats = await resCats.json();
         setAllProducts(products);
+        setCategories(cats);
       } catch (error) {
-        console.error("Erro ao buscar produtos", error);
+        console.error("Erro ao buscar dados", error);
       }
     };
-    fetchProducts();
+    fetchData();
     console.log("[Novo Produto] Página de cadastro carregada.");
   }, []);
 
@@ -126,7 +142,27 @@ export default function NewProductPage() {
     console.log("[Novo Produto] Iniciando processo de salvamento...");
     
     try {
-      const category = data.category === "Outra" ? data.customCategory || "Geral" : data.category;
+      let finalCategory = data.category;
+      
+      // Se for uma nova categoria, salva ela no banco primeiro
+      if (data.category === "Outra" && data.customCategory) {
+        finalCategory = data.customCategory;
+        const newCat = {
+          id: Math.random().toString(36).substring(2, 9),
+          name: data.customCategory,
+          slug: slugify(data.customCategory),
+        };
+        
+        console.log("[Novo Produto] Criando nova categoria:", newCat.name);
+        await fetch("/api/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newCat),
+        });
+      } else if (data.category === "Outra") {
+        finalCategory = "Geral";
+      }
+
       const productId = Math.random().toString(36).substring(2, 9);
       const productSlug = slugify(data.name);
       
@@ -139,7 +175,7 @@ export default function NewProductPage() {
         image: data.image,
         images: data.images?.filter(img => img.length > 0),
         videoUrl: data.videoUrl,
-        category: category,
+        category: finalCategory,
         active: data.active,
         seo: {
           title: data.seoTitle,
@@ -148,6 +184,7 @@ export default function NewProductPage() {
         },
         upsellProductId: data.upsellProductId,
         orderBumpId: data.orderBumpId,
+        orderBumpIds: data.orderBumpIds?.filter(id => id !== ""),
         variations: data.variations && data.variations.length > 0 ? data.variations : undefined,
         postPurchaseUpsell: data.postPurchaseUpsell?.productId ? data.postPurchaseUpsell : undefined,
       };
@@ -307,17 +344,41 @@ export default function NewProductPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Produto para Order Bump (Oferta no Checkout)</label>
-                <select
-                  {...register("orderBumpId")}
-                  className="w-full h-11 px-4 rounded-lg border bg-background focus:ring-2 focus:ring-primary outline-none"
-                >
-                  <option value="">Nenhum</option>
-                  {allProducts.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} (R$ {p.price})</option>
+                <label className="block text-sm font-medium mb-1">Produtos para Order Bump (Oferta no Checkout - Máx 3)</label>
+                <div className="space-y-2">
+                  {[0, 1, 2].map((index) => (
+                    <div key={index} className="flex gap-2">
+                      <select
+                        value={watch("orderBumpIds")?.[index] || ""}
+                        onChange={(e) => {
+                          const currentIds = [...(watch("orderBumpIds") || [])];
+                          currentIds[index] = e.target.value;
+                          setValue("orderBumpIds", currentIds.filter(id => id !== "" || index < currentIds.length));
+                        }}
+                        className="flex-1 h-10 px-3 rounded-lg border bg-background focus:ring-2 focus:ring-primary outline-none transition-all text-sm"
+                      >
+                        <option value="">Nenhum</option>
+                        {allProducts.map(p => (
+                          <option key={p.id} value={p.id}>{p.name} (R$ {p.price})</option>
+                        ))}
+                      </select>
+                      {watch("orderBumpIds")?.[index] && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentIds = [...(watch("orderBumpIds") || [])];
+                            currentIds[index] = "";
+                            setValue("orderBumpIds", currentIds.filter(id => id !== ""));
+                          }}
+                          className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   ))}
-                </select>
-                <p className="text-[10px] text-muted-foreground mt-1">Exibido como uma oferta rápida de um clique no checkout.</p>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">Exibido como ofertas rápidas de um clique no checkout (antes do botão de pagar).</p>
               </div>
             </div>
 
@@ -382,10 +443,11 @@ export default function NewProductPage() {
                   className="w-full h-11 px-4 rounded-lg border bg-background focus:ring-2 focus:ring-primary outline-none"
                 >
                   <option value="">Selecione...</option>
-                  <option value="Calçados">Calçados</option>
-                  <option value="Eletrônicos">Eletrônicos</option>
-                  <option value="Acessórios">Acessórios</option>
-                  <option value="Vestuário">Vestuário</option>
+                  {categories.map((cat: any) => (
+                    <option key={cat.id} value={cat.name}>
+                      {cat.name}
+                    </option>
+                  ))}
                   <option value="Outra">Outra (Criar Nova)</option>
                 </select>
                 {errors.category && <p className="text-destructive text-xs mt-1">{errors.category.message}</p>}
