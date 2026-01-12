@@ -5,20 +5,22 @@ import {
   getCouponsFromDb,
   getOrdersFromDb,
   getAbandonedCartsFromDb,
-  getVisitsFromDb
+  getVisitsFromDb,
+  getCustomersFromDb
 } from "@/lib/db";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const [products, categories, coupons, orders, abandonedCarts, visits] = await Promise.all([
+    const [products, categories, coupons, orders, abandonedCarts, visits, customers] = await Promise.all([
       getProductsFromDb(),
       getCategoriesFromDb(),
       getCouponsFromDb(),
       getOrdersFromDb(),
       getAbandonedCartsFromDb(),
-      getVisitsFromDb()
+      getVisitsFromDb(),
+      getCustomersFromDb()
     ]);
 
     return NextResponse.json({
@@ -27,7 +29,8 @@ export async function GET() {
       coupons,
       abandonedCarts,
       visits,
-      categories
+      categories,
+      customers
     });
   } catch (error) {
     console.error("[API] Erro ao buscar dados consolidados do admin:", error);

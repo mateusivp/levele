@@ -1,4 +1,4 @@
-import { Order, Product, Coupon, AbandonedCart, Category } from "@/types";
+import { Order, Product, Coupon, AbandonedCart, Category, Customer } from "@/types";
 import { products } from "@/data/products";
 import pool from "./db_connection";
 
@@ -345,6 +345,96 @@ export async function updateCustomerPassword(phone: string, password: string) {
     await pool.query('UPDATE customers SET password = $1 WHERE phone = $2', [password, phone]);
   } catch (error) {
     console.error("Erro ao atualizar senha do cliente no Postgres:", error);
+    throw error;
+  }
+}
+
+export async function updateCustomerInDb(phone: string, data: { name?: string, email?: string, addresses?: any[] }) {
+  if (!pool) return;
+  try {
+    const fields = [];
+    const values = [];
+    let i = 1;
+
+    if (data.name) {
+      fields.push(`name = $${i++}`);
+      values.push(data.name);
+    }
+    if (data.email !== undefined) {
+      fields.push(`email = $${i++}`);
+      values.push(data.email);
+    }
+    if (data.addresses !== undefined) {
+      fields.push(`addresses = $${i++}`);
+      values.push(JSON.stringify(data.addresses));
+    }
+
+    if (fields.length === 0) return;
+
+    values.push(phone);
+    await pool.query(`UPDATE customers SET ${fields.join(', ')}, updated_at = NOW() WHERE phone = $${i}`, values);
+  } catch (error) {
+    console.error("Erro ao atualizar cliente no Postgres:", error);
+    throw error;
+  }
+}
+
+export async function getCustomersFromDb(): Promise<Customer[]> {
+  if (!pool) return [];
+  try {
+    const { rows } = await pool.query('SELECT * FROM customers ORDER BY created_at DESC');
+    return rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      phone: row.phone,
+      password: row.password,
+      cashback: Number(row.cashback),
+      points: row.points,
+      level: row.level,
+      addresses: row.addresses || [],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+  } catch (error) {
+    console.error("Erro ao buscar clientes no Postgres:", error);
+    return [];
+  }
+}
+
+export async function saveCustomerToDb(customer: Customer) {
+  if (!pool) return;
+  try {
+    await pool.query(
+      `INSERT INTO customers (id, name, email, phone, cashback, points, level, password)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (phone) DO UPDATE SET 
+       name=EXCLUDED.name, email=EXCLUDED.email, 
+       cashback=EXCLUDED.cashback, points=EXCLUDED.points, 
+       level=EXCLUDED.level, password=EXCLUDED.password`,
+      [
+        customer.id,
+        customer.name,
+        customer.email || "",
+        customer.phone,
+        customer.cashback,
+        customer.points,
+        customer.level,
+        customer.password || null
+      ]
+    );
+  } catch (error) {
+    console.error("Erro ao salvar cliente no Postgres:", error);
+    throw error;
+  }
+}
+
+export async function deleteCustomerFromDb(id: string) {
+  if (!pool) return;
+  try {
+    await pool.query('DELETE FROM customers WHERE id = $1', [id]);
+  } catch (error) {
+    console.error("Erro ao deletar cliente no Postgres:", error);
     throw error;
   }
 }

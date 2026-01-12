@@ -630,41 +630,99 @@ export default function MinhaContaPage() {
     const savedCustomer = localStorage.getItem("customer_auth");
     if (savedCustomer) {
       const parsed = JSON.parse(savedCustomer);
-      setCustomer(parsed);
-      fetchOrders(parsed.phone);
-
-      // Preencher formData com dados básicos
-      setFormData({
-        name: parsed.name || "",
-        email: parsed.email || "",
-        phone: parsed.phone || ""
-      });
-
-      // Carregar múltiplos endereços
-      const savedAddresses = localStorage.getItem("customer_addresses");
-      if (savedAddresses) {
-        try {
-          const parsedAddresses = JSON.parse(savedAddresses);
-          setAddresses(parsedAddresses);
-          if (parsedAddresses.length > 0) {
-            setSelectedAddressId(parsedAddresses[0].id);
+      
+      // Função para carregar endereços
+      const loadAddresses = (updatedCustomer: any) => {
+        if (updatedCustomer.addresses && updatedCustomer.addresses.length > 0) {
+          setAddresses(updatedCustomer.addresses);
+          setSelectedAddressId(updatedCustomer.addresses[0].id);
+          localStorage.setItem("customer_addresses", JSON.stringify(updatedCustomer.addresses));
+        } else {
+          // Fallback para localStorage se não houver no banco
+          const savedAddresses = localStorage.getItem("customer_addresses");
+          if (savedAddresses) {
+            try {
+              const parsedAddresses = JSON.parse(savedAddresses);
+              setAddresses(parsedAddresses);
+              if (parsedAddresses.length > 0) {
+                setSelectedAddressId(parsedAddresses[0].id);
+              }
+              
+              // Sincronizar com o banco pela primeira vez
+              fetch("/api/customers/update", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  phone: updatedCustomer.phone,
+                  addresses: parsedAddresses
+                })
+              });
+            } catch (e) {}
+          } else {
+            // Fallback: tentar carregar o endereço antigo único e converter para o novo formato
+            const savedAddress = localStorage.getItem("last_delivery_address");
+            if (savedAddress) {
+              try {
+                const address = JSON.parse(savedAddress);
+                const initialAddress = { ...address, id: 'addr_' + Date.now(), label: 'Principal' };
+                setAddresses([initialAddress]);
+                setSelectedAddressId(initialAddress.id);
+                localStorage.setItem("customer_addresses", JSON.stringify([initialAddress]));
+                
+                // Sincronizar com o banco pela primeira vez
+                fetch("/api/customers/update", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    phone: updatedCustomer.phone,
+                    addresses: [initialAddress]
+                  })
+                });
+              } catch (e) {}
+            }
           }
-        } catch (e) {
-          console.error("Erro ao carregar endereços", e);
         }
-      } else {
-        // Fallback: tentar carregar o endereço antigo único e converter para o novo formato
-        const savedAddress = localStorage.getItem("last_delivery_address");
-        if (savedAddress) {
-          try {
-            const address = JSON.parse(savedAddress);
-            const initialAddress = { ...address, id: 'addr_' + Date.now(), label: 'Principal' };
-            setAddresses([initialAddress]);
-            setSelectedAddressId(initialAddress.id);
-            localStorage.setItem("customer_addresses", JSON.stringify([initialAddress]));
-          } catch (e) {}
-        }
-      }
+      };
+
+      // Buscar dados atualizados do banco
+      fetch(`/api/customers/me?phone=${encodeURIComponent(parsed.phone)}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(updatedCustomer => {
+          if (updatedCustomer) {
+            setCustomer(updatedCustomer);
+            localStorage.setItem("customer_auth", JSON.stringify(updatedCustomer));
+            
+            // Preencher formData com dados atualizados
+            setFormData({
+              name: updatedCustomer.name || "",
+              email: updatedCustomer.email || "",
+              phone: updatedCustomer.phone || ""
+            });
+
+            // Carregar endereços
+            loadAddresses(updatedCustomer);
+          } else {
+            // Fallback para o que está no localStorage se der erro
+            setCustomer(parsed);
+            setFormData({
+              name: parsed.name || "",
+              email: parsed.email || "",
+              phone: parsed.phone || ""
+            });
+            loadAddresses(parsed);
+          }
+        })
+        .catch(() => {
+          setCustomer(parsed);
+          setFormData({
+            name: parsed.name || "",
+            email: parsed.email || "",
+            phone: parsed.phone || ""
+          });
+          loadAddresses(parsed);
+        });
+
+      fetchOrders(parsed.phone);
     }
     
     setIsLoading(false);
@@ -743,7 +801,7 @@ export default function MinhaContaPage() {
     setIsOrderDetailModalOpen(true);
   };
 
-  const handleSaveAddress = (addressData: any) => {
+  const handleSaveAddress = async (addressData: any) => {
     let newAddresses;
     if (addressData.id) {
       // Editar existente
@@ -759,17 +817,47 @@ export default function MinhaContaPage() {
     
     setAddresses(newAddresses);
     localStorage.setItem("customer_addresses", JSON.stringify(newAddresses));
+
+    // Sincronizar com o banco
+    try {
+      await fetch("/api/customers/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: customer.phone,
+          addresses: newAddresses
+        })
+      });
+    } catch (e) {
+      console.error("Erro ao sincronizar endereços com o banco", e);
+    }
+
     setIsAddressModalOpen(false);
     setEditingAddress(null);
     setSuccessMessage("Endereço salvo com sucesso!");
     setTimeout(() => setSuccessMessage(""), 3000);
   };
 
-  const handleDeleteAddress = (id: string) => {
+  const handleDeleteAddress = async (id: string) => {
     if (confirm("Tem certeza que deseja excluir este endereço?")) {
       const newAddresses = addresses.filter(addr => addr.id !== id);
       setAddresses(newAddresses);
       localStorage.setItem("customer_addresses", JSON.stringify(newAddresses));
+
+      // Sincronizar com o banco
+      try {
+        await fetch("/api/customers/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: customer.phone,
+            addresses: newAddresses
+          })
+        });
+      } catch (e) {
+        console.error("Erro ao sincronizar endereços com o banco", e);
+      }
+
       if (selectedAddressId === id) {
         setSelectedAddressId(newAddresses.length > 0 ? newAddresses[0].id : null);
       }
@@ -814,12 +902,24 @@ export default function MinhaContaPage() {
     }
 
     try {
-      // Atualizar dados do cliente
+      // Atualizar dados do cliente no banco
+      const res = await fetch("/api/customers/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: customer.phone,
+          name: formData.name,
+          email: formData.email
+        })
+      });
+
+      if (!res.ok) throw new Error("Erro ao salvar no banco");
+
+      // Atualizar estado local e localStorage
       const updatedCustomer = {
         ...customer,
         name: formData.name,
-        email: formData.email,
-        phone: formData.phone
+        email: formData.email
       };
       setCustomer(updatedCustomer);
       localStorage.setItem("customer_auth", JSON.stringify(updatedCustomer));

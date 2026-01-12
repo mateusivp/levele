@@ -1,17 +1,17 @@
 "use client";
 
 import { useState, useEffect, Suspense, useRef } from "react";
-import { Order, Coupon, Product, Category } from "@/types";
+import { Order, Coupon, Product, Category, Customer } from "@/types";
 import { formatPrice, slugify } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Edit, Trash2, LayoutDashboard, Package, LogOut, ShoppingBag, TrendingUp, Users, Clock, Eye, Menu, X, Copy, Check, Search, RefreshCw, ArrowLeft, Settings, Edit2, MapPin, Phone, User, Calendar, CreditCard, History, Tag, Percent, Star, MessageSquare, ThumbsUp, ThumbsDown, ShoppingCart, FolderTree, Loader2 } from "lucide-react";
+import { Plus, Edit, Trash2, LayoutDashboard, Package, LogOut, ShoppingBag, TrendingUp, Users, Clock, Eye, Menu, X, Copy, Check, Search, RefreshCw, ArrowLeft, Settings, Edit2, MapPin, Phone, User, Calendar, CreditCard, History, Tag, Percent, Star, MessageSquare, ThumbsUp, ThumbsDown, ShoppingCart, FolderTree, Loader2, Coins } from "lucide-react";
 
 function AdminDashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get('tab') as 'dashboard' | 'produtos' | 'pedidos' | 'cupons' | 'avaliacoes' || 'dashboard';
+  const initialTab = searchParams.get('tab') as 'dashboard' | 'produtos' | 'pedidos' | 'cupons' | 'avaliacoes' | 'clientes' || 'dashboard';
   
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -19,10 +19,11 @@ function AdminDashboardContent() {
   const [newVariation, setNewVariation] = useState({ name: '', price: 0 });
   const [orders, setOrders] = useState<Order[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [abandonedCarts, setAbandonedCarts] = useState<any[]>([]);
   const [visits, setVisits] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'produtos' | 'pedidos' | 'cupons' | 'avaliacoes' | 'abandonados' | 'categorias'>(initialTab as any || 'dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'produtos' | 'pedidos' | 'cupons' | 'avaliacoes' | 'abandonados' | 'categorias' | 'clientes'>(initialTab as any || 'dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -183,7 +184,7 @@ function AdminDashboardContent() {
     }
 
     const tab = searchParams.get('tab');
-    if (tab && (tab === 'dashboard' || tab === 'produtos' || tab === 'pedidos' || tab === 'cupons' || tab === 'avaliacoes' || tab === 'abandonados' || tab === 'categorias')) {
+    if (tab && (tab === 'dashboard' || tab === 'produtos' || tab === 'pedidos' || tab === 'cupons' || tab === 'avaliacoes' || tab === 'abandonados' || tab === 'categorias' || tab === 'clientes')) {
       setActiveTab(tab as any);
     }
     
@@ -238,6 +239,7 @@ function AdminDashboardContent() {
       setProducts(data.products || []);
       setOrders(data.orders || []);
       setCoupons(data.coupons || []);
+      setCustomers(data.customers || []);
       setAbandonedCarts(data.abandonedCarts || []);
       setVisits(data.visits || 0);
       setCategories(data.categories || []);
@@ -383,6 +385,8 @@ function AdminDashboardContent() {
     expeditionOrders: orders.filter(o => o.status === 'Expedição').length,
     abandonedCarts: abandonedCarts.length,
     visits: visits,
+    totalCustomers: customers.length,
+    totalCashback: customers.reduce((acc, c) => acc + (c.cashback || 0), 0),
   };
 
   const handleLogout = () => {
@@ -633,6 +637,13 @@ function AdminDashboardContent() {
             Pedidos
           </button>
           <button 
+            onClick={() => handleTabChange('clientes')}
+            className={`flex w-full items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'clientes' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+          >
+            <Users className="h-5 w-5" />
+            Clientes
+          </button>
+          <button 
                 onClick={() => handleTabChange('produtos')}
                 className={`flex w-full items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'produtos' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
               >
@@ -707,6 +718,13 @@ function AdminDashboardContent() {
               >
                 <ShoppingBag className="h-5 w-5" />
                 Pedidos
+              </button>
+              <button 
+                onClick={() => { handleTabChange('clientes'); setIsMobileMenuOpen(false); }}
+                className={`flex w-full items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'clientes' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+              >
+                <Users className="h-5 w-5" />
+                Clientes
               </button>
               <button 
                 onClick={() => { handleTabChange('produtos'); setIsMobileMenuOpen(false); }}
@@ -1197,6 +1215,104 @@ function AdminDashboardContent() {
           </div>
         )}
 
+        {activeTab === 'clientes' && (
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold">Clientes</h1>
+                <p className="text-muted-foreground">Gerencie sua base de clientes e programa de fidelidade.</p>
+              </div>
+            </div>
+
+            <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-muted/50 border-b">
+                  <tr>
+                    <th className="p-4 font-bold text-sm">Cliente</th>
+                    <th className="p-4 font-bold text-sm">Contato</th>
+                    <th className="p-4 font-bold text-sm">Fidelidade</th>
+                    <th className="p-4 font-bold text-sm">Desde</th>
+                    <th className="p-4 font-bold text-sm text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {customers.map((customer) => (
+                    <tr key={customer.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                            {customer.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-bold text-sm">{customer.name}</p>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{customer.level}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="space-y-1">
+                          <p className="text-sm flex items-center gap-2">
+                            <Phone className="h-3 w-3 text-muted-foreground" />
+                            {customer.phone}
+                          </p>
+                          {customer.email && (
+                            <p className="text-xs text-muted-foreground flex items-center gap-2">
+                              <Search className="h-3 w-3" />
+                              {customer.email}
+                            </p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-4">
+                          <div className="text-center">
+                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Cashback</p>
+                            <p className="text-green-600 font-black text-sm">{formatPrice(customer.cashback)}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Pontos</p>
+                            <p className="text-primary font-black text-sm">{customer.points.toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4 text-xs text-muted-foreground">
+                        {new Date(customer.createdAt).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="p-4 text-right">
+                        <button 
+                          onClick={async () => {
+                            if (confirm(`Deseja excluir o cliente ${customer.name}?`)) {
+                              const res = await fetch(`/api/admin/customers?id=${customer.id}`, { method: 'DELETE' });
+                              if (res.ok) {
+                                addNotification("Cliente excluído!");
+                                fetchData();
+                              }
+                            }
+                          }}
+                          className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                          title="Excluir Cliente"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {customers.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="p-12 text-center text-muted-foreground">
+                        <div className="flex flex-col items-center gap-2">
+                          <Users className="h-12 w-12 opacity-20" />
+                          <p className="italic">Nenhum cliente cadastrado ainda.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'abandonados' && (
           <div className="space-y-8">
             <div className="flex justify-between items-center">
@@ -1398,6 +1514,30 @@ function AdminDashboardContent() {
                 </div>
               </div>
 
+              <div className="bg-card p-6 rounded-xl border border-purple-500/20 bg-purple-500/5">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-purple-500/10 rounded-lg">
+                    <Users className="h-6 w-6 text-purple-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total de Clientes</p>
+                    <h3 className="text-2xl font-bold">{metrics.totalCustomers}</h3>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-card p-6 rounded-xl border border-green-500/20 bg-green-500/5">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-green-500/10 rounded-lg">
+                    <Coins className="h-6 w-6 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Cashback Distribuído</p>
+                    <h3 className="text-2xl font-bold">{formatPrice(metrics.totalCashback)}</h3>
+                  </div>
+                </div>
+              </div>
+
               <div className="bg-card p-6 rounded-xl border">
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-purple-500/10 rounded-lg">
@@ -1406,6 +1546,30 @@ function AdminDashboardContent() {
                   <div>
                     <p className="text-sm text-muted-foreground">Produtos Ativos</p>
                     <h3 className="text-2xl font-bold">{metrics.totalProducts}</h3>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-card p-6 rounded-xl border border-primary/20 bg-primary/5">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-primary/10 rounded-lg">
+                    <Users className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total de Clientes</p>
+                    <h3 className="text-2xl font-bold">{metrics.totalCustomers}</h3>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-card p-6 rounded-xl border">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-green-500/10 rounded-lg">
+                    <Star className="h-6 w-6 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Cashback Acumulado</p>
+                    <h3 className="text-2xl font-bold">{formatPrice(metrics.totalCashback)}</h3>
                   </div>
                 </div>
               </div>

@@ -117,10 +117,18 @@ export async function GET() {
         cashback DECIMAL(10, 2) DEFAULT 0.00,
         points INTEGER DEFAULT 0,
         level TEXT DEFAULT 'Bronze',
+        addresses JSONB,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Garantir que a coluna addresses existe (migração)
+    try {
+      await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS addresses JSONB`);
+    } catch (e) {
+      console.log("Coluna addresses já existe ou erro ao adicionar:", e);
+    }
 
     // Inicializar métricas
     await pool.query(`
@@ -136,7 +144,7 @@ export async function GET() {
       success: true 
     });
   } catch (error: any) {
-    console.error("[INIT-DB] Erro ao inicializar banco de dados:", error);
+    console.error("[INIT-DB] Erro detalhado ao inicializar banco de dados:", error);
     return NextResponse.json({ 
       error: error.message,
       success: false 

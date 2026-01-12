@@ -1,8 +1,11 @@
-import { createPool } from '@vercel/postgres';
+import { Pool } from 'pg';
 
-// Cria o pool apenas se a URL do Postgres estiver presente para evitar erros de build
+// Cria o pool usando pg diretamente para suportar tanto local quanto Vercel Postgres
 const pool = process.env.POSTGRES_URL 
-  ? createPool() 
+  ? new Pool({
+      connectionString: process.env.POSTGRES_URL,
+      ssl: process.env.POSTGRES_URL.includes('localhost') ? false : { rejectUnauthorized: false }
+    })
   : null;
 
 export default pool;
