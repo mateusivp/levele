@@ -36,7 +36,8 @@ export default async function CategoryPage({ params }: PageProps) {
     notFound();
   }
 
-  const filteredProducts = allProducts.filter(p => p.category === categoryName);
+  // Filtra usando slugify para evitar problemas com acentuação/case no banco
+  const filteredProducts = allProducts.filter(p => slugify(p.category) === slug);
 
   return (
     <div className="container mx-auto px-4 py-12">
