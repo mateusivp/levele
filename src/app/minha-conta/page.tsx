@@ -1080,7 +1080,9 @@ export default function MinhaContaPage() {
         onClose={() => setIsQuickBuyOpen(false)} 
         product={selectedQuickProduct} 
         onConfirm={confirmQuickBuy}
-        address={formData}
+        addresses={addresses}
+        selectedAddressId={selectedAddressId}
+        onSelectAddress={setSelectedAddressId}
         onEditAddress={() => {
           setIsQuickBuyOpen(false);
           setActiveTab("dados");
