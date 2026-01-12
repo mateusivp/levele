@@ -595,6 +595,7 @@ export default function MinhaContaPage() {
   const [selectedQuickProduct, setSelectedQuickProduct] = useState<any>(null);
   const [isQuickBuyOpen, setIsQuickBuyOpen] = useState(false);
   const [isDirectPurchaseSuccess, setIsDirectPurchaseSuccess] = useState(false);
+  const [lastPurchaseAddress, setLastPurchaseAddress] = useState<any>(null);
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<any>(null);
   const [isOrderDetailModalOpen, setIsOrderDetailModalOpen] = useState(false);
   
@@ -723,6 +724,7 @@ export default function MinhaContaPage() {
           const createdOrder = await response.json();
           // Atualizar lista local de pedidos
           setOrders(prev => [createdOrder, ...prev]);
+          setLastPurchaseAddress(address);
           setIsDirectPurchaseSuccess(true);
         } else {
           setError("Erro ao processar pedido. Tente novamente.");
@@ -1092,7 +1094,7 @@ export default function MinhaContaPage() {
         isOpen={isDirectPurchaseSuccess} 
         onClose={() => setIsDirectPurchaseSuccess(false)} 
         product={selectedQuickProduct}
-        address={formData}
+        address={lastPurchaseAddress}
       />
       <OrderDetailModal 
         isOpen={isOrderDetailModalOpen} 
