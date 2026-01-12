@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useState, useEffect, Suspense } from "react";
 import Image from "next/image";
-import { CheckCircle2, Loader2, MapPin, Phone, User, Calendar, Tag, Plus, ShoppingCart, Percent, ShieldCheck, HelpCircle, Info, X, Clock, Gift, Sparkles } from "lucide-react";
+import { CheckCircle2, Loader2, MapPin, Phone, User, Calendar, Tag, Plus, ShoppingCart, Percent, ShieldCheck, HelpCircle, Info, X, Clock, Gift, Sparkles, Package } from "lucide-react";
 import { Product } from "@/types";
 
 const checkoutSchema = z.object({
