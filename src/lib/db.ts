@@ -62,221 +62,309 @@ const getDbAbandonedCarts = () => globalForDb.dbAbandonedCarts || [];
 export async function getProductsFromDb(): Promise<Product[]> {
   const currentDbProducts = getDbProducts();
   if (!pool) {
-    console.warn("Conexão com Postgres não configurada para busca de produtos. Retornando dados em memória.");
+    console.warn("[DB] Sem pool de conexão. Retornando memória.");
     return currentDbProducts;
   }
   
   try {
+    console.log("[DB] Iniciando consulta ao Postgres...");
     const { rows } = await pool.query('SELECT * FROM products ORDER BY id ASC');
+    console.log(`[DB] Consulta concluída. ${rows.length} linhas retornadas.`);
     
-    const dbRows = rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      price: Number(row.price),
-      image: row.image,
-      images: typeof row.images === 'string' ? JSON.parse(row.images) : (row.images || []),
-      videoUrl: row.video_url,
-      slug: row.slug,
-      category: row.category,
-      active: row.active === 1 || row.active === true,
-      seo: {
-        title: row.seo_title || "",
-        description: row.seo_description || "",
-        keywords: row.name ? row.name.split(" ").map((k: any) => k.toLowerCase()) : [],
-      },
-      upsellProductId: row.upsell_product_id,
-      orderBumpId: row.order_bump_id,
-      orderBumpIds: (() => {
-        try {
-          return typeof row.order_bump_ids === 'string' ? JSON.parse(row.order_bump_ids) : (row.order_bump_ids || []);
-        } catch (e) {
-          console.error("Erro ao processar order_bump_ids:", e);
-          return [];
-        }
-      })(),
-      variations: typeof row.variations === 'string' ? JSON.parse(row.variations) : (row.variations || []),
-      postPurchaseUpsell: typeof row.post_purchase_upsell === 'string' ? JSON.parse(row.post_purchase_upsell) : (row.post_purchase_upsell || null),
-      reviews: typeof row.reviews === 'string' ? JSON.parse(row.reviews) : (row.reviews || []),
-    }));
-
-    // Retornamos os produtos do banco combinados com os produtos em memória
-    // Priorizamos o que está no banco de dados. Só usamos a memória se o banco falhar ou estiver vazio.
-    const dbProductMap = new Map();
-    
-    // Adicionamos primeiro o que está em memória (estáticos + novos da sessão)
-    currentDbProducts.forEach(p => {
-      dbProductMap.set(p.id, p);
+    const dbRows = rows.map(row => {
+      console.log(`[DB] Processando linha: ID=${row.id}, Nome=${row.name}, Slug=${row.slug}`);
+      return {
+        id: String(row.id),
+        name: String(row.name || ""),
+        description: String(row.description || ""),
+        price: Number(row.price || 0),
+        image: String(row.image || ""),
+        images: (() => {
+          try {
+            return typeof row.images === 'string' ? JSON.parse(row.images) : (row.images || []);
+          } catch (e) {
+            console.error(`[DB] Erro ao parsear images para o produto ${row.id}:`, e);
+            return [];
+          }
+        })(),
+        videoUrl: row.video_url || "",
+        slug: String(row.slug || ""),
+        category: String(row.category || "Geral"),
+        active: row.active === 1 || row.active === true,
+        seo: {
+          title: row.seo_title || row.name || "",
+          description: row.seo_description || row.description || "",
+          keywords: row.name ? String(row.name).split(" ").map((k: any) => k.toLowerCase()) : [],
+        },
+        upsellProductId: row.upsell_product_id,
+        orderBumpId: row.order_bump_id,
+        orderBumpIds: (() => {
+          try {
+            return typeof row.order_bump_ids === 'string' ? JSON.parse(row.order_bump_ids) : (row.order_bump_ids || []);
+          } catch (e) {
+            console.error(`[DB] Erro ao parsear order_bump_ids para o produto ${row.id}:`, e);
+            return [];
+          }
+        })(),
+        variations: (() => {
+          try {
+            return typeof row.variations === 'string' ? JSON.parse(row.variations) : (row.variations || []);
+          } catch (e) {
+            console.error(`[DB] Erro ao parsear variations para o produto ${row.id}:`, e);
+            return [];
+          }
+        })(),
+        postPurchaseUpsell: (() => {
+          try {
+            return typeof row.post_purchase_upsell === 'string' ? JSON.parse(row.post_purchase_upsell) : (row.post_purchase_upsell || null);
+          } catch (e) {
+            console.error(`[DB] Erro ao parsear postPurchaseUpsell para o produto ${row.id}:`, e);
+            return null;
+          }
+        })(),
+        reviews: (() => {
+          try {
+            return typeof row.reviews === 'string' ? JSON.parse(row.reviews) : (row.reviews || []);
+          } catch (e) {
+            console.error(`[DB] Erro ao parsear reviews para o produto ${row.id}:`, e);
+            return [];
+          }
+        })(),
+      };
     });
 
-    // Sobrescrevemos com o que veio do banco de dados real (que é a fonte da verdade)
+    const dbProductMap = new Map();
+    
+    // 1. Inicia com produtos estáticos (data/products.ts)
+    products.forEach(p => {
+      dbProductMap.set(p.id, { ...p, active: true });
+    });
+
+    // 2. Sobrescreve/Adiciona com o que veio do Banco (Fonte da Verdade)
     dbRows.forEach(p => {
       dbProductMap.set(p.id, p);
     });
     
     const allProducts = Array.from(dbProductMap.values());
-    console.log(`[DB] IDs carregados do Banco: ${dbRows.map(p => p.id).join(', ')}`);
-    console.log(`[DB] Total de produtos carregados: ${allProducts.length} (Banco: ${dbRows.length}, Memória: ${currentDbProducts.length})`);
     
-    // Sincroniza memória global
+    // Sincroniza memória global para este processo
     globalForDb.dbProducts = allProducts;
     
     return allProducts;
   } catch (error) {
-    console.error("Erro ao buscar produtos do Postgres:", error);
+    console.error("[DB] Erro ao buscar produtos do Postgres:", error);
     return currentDbProducts;
   }
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
+  if (!slug) return null;
   const currentDbProducts = getDbProducts();
-  if (!pool) {
-    return currentDbProducts.find(p => p.slug === slug) || null;
-  }
-
-  try {
-    const { rows } = await pool.query('SELECT * FROM products WHERE slug = $1', [slug]);
-    if (rows.length === 0) {
-      // Tentar na memória se não achar no banco (pode ser um produto estático)
-      return currentDbProducts.find(p => p.slug === slug) || null;
+  
+  if (pool) {
+    try {
+      const { rows } = await pool.query('SELECT * FROM products WHERE slug = $1', [slug]);
+      if (rows.length > 0) {
+        const row = rows[0];
+        return {
+          id: String(row.id),
+          name: String(row.name || ""),
+          description: String(row.description || ""),
+          price: Number(row.price || 0),
+          image: String(row.image || ""),
+          images: typeof row.images === 'string' ? JSON.parse(row.images) : (row.images || []),
+          videoUrl: row.video_url || "",
+          slug: String(row.slug || ""),
+          category: String(row.category || "Geral"),
+          active: row.active === 1 || row.active === true,
+          seo: {
+            title: row.seo_title || row.name || "",
+            description: row.seo_description || row.description || "",
+            keywords: row.name ? String(row.name).split(" ").map((k: any) => k.toLowerCase()) : [],
+          },
+          upsellProductId: row.upsell_product_id,
+          orderBumpId: row.order_bump_id,
+          orderBumpIds: (() => {
+            try {
+              return typeof row.order_bump_ids === 'string' ? JSON.parse(row.order_bump_ids) : (row.order_bump_ids || []);
+            } catch (e) {
+              return [];
+            }
+          })(),
+          variations: (() => {
+            try {
+              return typeof row.variations === 'string' ? JSON.parse(row.variations) : (row.variations || []);
+            } catch (e) {
+              return [];
+            }
+          })(),
+          postPurchaseUpsell: (() => {
+            try {
+              return typeof row.post_purchase_upsell === 'string' ? JSON.parse(row.post_purchase_upsell) : (row.post_purchase_upsell || null);
+            } catch (e) {
+              return null;
+            }
+          })(),
+          reviews: (() => {
+            try {
+              return typeof row.reviews === 'string' ? JSON.parse(row.reviews) : (row.reviews || []);
+            } catch (e) {
+              return [];
+            }
+          })(),
+        };
+      }
+    } catch (error) {
+      console.error("[DB] Erro ao buscar produto por slug:", error);
     }
-
-    const row = rows[0];
-    return {
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      price: Number(row.price),
-      image: row.image,
-      images: typeof row.images === 'string' ? JSON.parse(row.images) : (row.images || []),
-      videoUrl: row.video_url,
-      slug: row.slug,
-      category: row.category,
-      active: row.active === 1 || row.active === true,
-      seo: {
-        title: row.seo_title || "",
-        description: row.seo_description || "",
-        keywords: row.name ? row.name.split(" ").map((k: any) => k.toLowerCase()) : [],
-      },
-      upsellProductId: row.upsell_product_id,
-      orderBumpId: row.order_bump_id,
-      orderBumpIds: (() => {
-        try {
-          return typeof row.order_bump_ids === 'string' ? JSON.parse(row.order_bump_ids) : (row.order_bump_ids || []);
-        } catch (e) {
-          console.error("Erro ao processar order_bump_ids:", e);
-          return [];
-        }
-      })(),
-      variations: typeof row.variations === 'string' ? JSON.parse(row.variations) : (row.variations || []),
-      postPurchaseUpsell: typeof row.post_purchase_upsell === 'string' ? JSON.parse(row.post_purchase_upsell) : (row.post_purchase_upsell || null),
-    };
-  } catch (error) {
-    console.error("Erro ao buscar produto por slug no Postgres:", error);
-    return currentDbProducts.find(p => p.slug === slug) || null;
   }
+
+  return currentDbProducts.find(p => p.slug === slug) || null;
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
+  if (!id) return null;
   const currentDbProducts = getDbProducts();
-  if (!pool) {
-    return currentDbProducts.find(p => p.id === id) || null;
-  }
 
-  try {
-    const { rows } = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
-    if (rows.length === 0) {
-      return currentDbProducts.find(p => p.id === id) || null;
+  if (pool) {
+    try {
+      const { rows } = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
+      if (rows.length > 0) {
+        const row = rows[0];
+        return {
+          id: String(row.id),
+          name: String(row.name || ""),
+          description: String(row.description || ""),
+          price: Number(row.price || 0),
+          image: String(row.image || ""),
+          images: (() => {
+            try {
+              return typeof row.images === 'string' ? JSON.parse(row.images) : (row.images || []);
+            } catch (e) {
+              return [];
+            }
+          })(),
+          videoUrl: row.video_url || "",
+          slug: String(row.slug || ""),
+          category: String(row.category || "Geral"),
+          active: row.active === 1 || row.active === true,
+          seo: {
+            title: row.seo_title || row.name || "",
+            description: row.seo_description || row.description || "",
+            keywords: row.name ? String(row.name).split(" ").map((k: any) => k.toLowerCase()) : [],
+          },
+          upsellProductId: row.upsell_product_id,
+          orderBumpId: row.order_bump_id,
+          orderBumpIds: (() => {
+            try {
+              return typeof row.order_bump_ids === 'string' ? JSON.parse(row.order_bump_ids) : (row.order_bump_ids || []);
+            } catch (e) {
+              return [];
+            }
+          })(),
+          variations: (() => {
+            try {
+              return typeof row.variations === 'string' ? JSON.parse(row.variations) : (row.variations || []);
+            } catch (e) {
+              return [];
+            }
+          })(),
+          postPurchaseUpsell: (() => {
+            try {
+              return typeof row.post_purchase_upsell === 'string' ? JSON.parse(row.post_purchase_upsell) : (row.post_purchase_upsell || null);
+            } catch (e) {
+              return null;
+            }
+          })(),
+          reviews: (() => {
+            try {
+              return typeof row.reviews === 'string' ? JSON.parse(row.reviews) : (row.reviews || []);
+            } catch (e) {
+              return [];
+            }
+          })(),
+        };
+      }
+    } catch (error) {
+      console.error("[DB] Erro ao buscar produto por ID:", error);
     }
-
-    const row = rows[0];
-    return {
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      price: Number(row.price),
-      image: row.image,
-      images: typeof row.images === 'string' ? JSON.parse(row.images) : (row.images || []),
-      videoUrl: row.video_url,
-      slug: row.slug,
-      category: row.category,
-      active: row.active === 1 || row.active === true,
-      seo: {
-        title: row.seo_title || "",
-        description: row.seo_description || "",
-        keywords: row.name ? row.name.split(" ").map((k: any) => k.toLowerCase()) : [],
-      },
-      upsellProductId: row.upsell_product_id,
-      orderBumpId: row.order_bump_id,
-      orderBumpIds: (() => {
-        try {
-          return typeof row.order_bump_ids === 'string' ? JSON.parse(row.order_bump_ids) : (row.order_bump_ids || []);
-        } catch (e) {
-          console.error("Erro ao processar order_bump_ids:", e);
-          return [];
-        }
-      })(),
-      variations: typeof row.variations === 'string' ? JSON.parse(row.variations) : (row.variations || []),
-      postPurchaseUpsell: typeof row.post_purchase_upsell === 'string' ? JSON.parse(row.post_purchase_upsell) : (row.post_purchase_upsell || null),
-    };
-  } catch (error) {
-    console.error("Erro ao buscar produto por ID no Postgres:", error);
-    return currentDbProducts.find(p => p.id === id) || null;
   }
+
+  return currentDbProducts.find(p => p.id === id) || null;
 }
 
 export async function saveProductToDb(product: Product) {
+  console.log(`[DB] Salvando produto: ${product.name} (ID: ${product.id}, Slug: ${product.slug})`);
+  
   // Atualiza a memória
   if (globalForDb.dbProducts) {
     const index = globalForDb.dbProducts.findIndex(p => p.id === product.id);
     if (index >= 0) {
+      console.log(`[DB] Atualizando produto existente na memória (ID: ${product.id})`);
       globalForDb.dbProducts[index] = product;
     } else {
+      console.log(`[DB] Adicionando novo produto na memória (ID: ${product.id})`);
       globalForDb.dbProducts.push(product);
     }
-  } else {
-    globalForDb.dbProducts = [product];
   }
 
   if (!pool) {
-    console.warn("Conexão com Postgres não configurada para salvar produto.");
+    console.warn("[DB] Sem pool. Produto salvo apenas em memória temporária.");
     return;
   }
 
   try {
-    await pool.query(
-      `INSERT INTO products (id, name, description, price, image, images, video_url, slug, category, active, seo_title, seo_description, upsell_product_id, order_bump_id, order_bump_ids, variations, post_purchase_upsell, reviews)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-       ON CONFLICT (id) DO UPDATE SET 
-       name=EXCLUDED.name, description=EXCLUDED.description, price=EXCLUDED.price, image=EXCLUDED.image, 
-       images=EXCLUDED.images, video_url=EXCLUDED.video_url, slug=EXCLUDED.slug, category=EXCLUDED.category, 
-       active=EXCLUDED.active, seo_title=EXCLUDED.seo_title, seo_description=EXCLUDED.seo_description,
-       upsell_product_id=EXCLUDED.upsell_product_id, order_bump_id=EXCLUDED.order_bump_id, order_bump_ids=EXCLUDED.order_bump_ids,
-       variations=EXCLUDED.variations, post_purchase_upsell=EXCLUDED.post_purchase_upsell, reviews=EXCLUDED.reviews`,
-      [
-        product.id,
-        product.name,
-        product.description,
-        product.price,
-        product.image,
-        JSON.stringify(product.images || []),
-        product.videoUrl,
-        product.slug,
-        product.category,
-        product.active,
-        product.seo.title,
-        product.seo.description,
-        product.upsellProductId,
-        product.orderBumpId,
-        JSON.stringify(product.orderBumpIds || []),
-        JSON.stringify(product.variations || []),
-        JSON.stringify(product.postPurchaseUpsell || null),
-        JSON.stringify(product.reviews || [])
-      ]
-    );
+    // Verificar se o slug já existe para outro ID
+    const { rows: slugCheck } = await pool.query('SELECT id, name FROM products WHERE slug = $1 AND id <> $2', [product.slug, product.id]);
+    if (slugCheck.length > 0) {
+      console.error(`[DB] Conflito de slug: O slug "${product.slug}" já é usado pelo produto "${slugCheck[0].name}" (ID: ${slugCheck[0].id})`);
+      throw new Error(`O slug "${product.slug}" já está em uso.`);
+    }
+
+    const query = `
+      INSERT INTO products (
+        id, name, description, price, image, images, video_url, slug, category, 
+        active, seo_title, seo_description, upsell_product_id, order_bump_id, 
+        order_bump_ids, variations, post_purchase_upsell, reviews
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      ON CONFLICT (id) DO UPDATE SET 
+        name=EXCLUDED.name, description=EXCLUDED.description, price=EXCLUDED.price, 
+        image=EXCLUDED.image, images=EXCLUDED.images, video_url=EXCLUDED.video_url, 
+        slug=EXCLUDED.slug, category=EXCLUDED.category, active=EXCLUDED.active, 
+        seo_title=EXCLUDED.seo_title, seo_description=EXCLUDED.seo_description,
+        upsell_product_id=EXCLUDED.upsell_product_id, order_bump_id=EXCLUDED.order_bump_id, 
+        order_bump_ids=EXCLUDED.order_bump_ids, variations=EXCLUDED.variations, 
+        post_purchase_upsell=EXCLUDED.post_purchase_upsell, reviews=EXCLUDED.reviews,
+        updated_at = NOW()
+    `;
+
+    const values = [
+      product.id,
+      product.name,
+      product.description,
+      product.price,
+      product.image,
+      JSON.stringify(product.images || []),
+      product.videoUrl || "",
+      product.slug,
+      product.category || "Geral",
+      product.active !== false,
+      product.seo?.title || product.name,
+      product.seo?.description || product.description,
+      product.upsellProductId || null,
+      product.orderBumpId || null,
+      JSON.stringify(product.orderBumpIds || []),
+      JSON.stringify(product.variations || []),
+      JSON.stringify(product.postPurchaseUpsell || null),
+      JSON.stringify(product.reviews || [])
+    ];
+
+    await pool.query(query, values);
+    console.log(`[DB] Produto ${product.id} salvo com sucesso no Postgres.`);
   } catch (error) {
-    console.error("Erro ao salvar produto no Postgres:", error);
-    throw error; // Re-lança o erro para a API tratar
+    console.error("[DB] Erro fatal ao salvar no Postgres:", error);
+    throw error;
   }
 }
 
