@@ -72,7 +72,7 @@ export async function getProductsFromDb(): Promise<Product[]> {
     console.log(`[DB] Consulta concluída. ${rows.length} linhas retornadas.`);
     
     const dbRows = rows.map(row => {
-      console.log(`[DB] Processando linha: ID=${row.id}, Nome=${row.name}, Slug=${row.slug}`);
+      // console.log(`[DB] Processando linha: ID=${row.id}, Nome=${row.name}, Slug=${row.slug}`);
       return {
         id: String(row.id),
         name: String(row.name || ""),
@@ -102,7 +102,6 @@ export async function getProductsFromDb(): Promise<Product[]> {
           try {
             return typeof row.order_bump_ids === 'string' ? JSON.parse(row.order_bump_ids) : (row.order_bump_ids || []);
           } catch (e) {
-            console.error(`[DB] Erro ao parsear order_bump_ids para o produto ${row.id}:`, e);
             return [];
           }
         })(),
@@ -110,7 +109,6 @@ export async function getProductsFromDb(): Promise<Product[]> {
           try {
             return typeof row.variations === 'string' ? JSON.parse(row.variations) : (row.variations || []);
           } catch (e) {
-            console.error(`[DB] Erro ao parsear variations para o produto ${row.id}:`, e);
             return [];
           }
         })(),
@@ -118,7 +116,6 @@ export async function getProductsFromDb(): Promise<Product[]> {
           try {
             return typeof row.post_purchase_upsell === 'string' ? JSON.parse(row.post_purchase_upsell) : (row.post_purchase_upsell || null);
           } catch (e) {
-            console.error(`[DB] Erro ao parsear postPurchaseUpsell para o produto ${row.id}:`, e);
             return null;
           }
         })(),
@@ -126,12 +123,13 @@ export async function getProductsFromDb(): Promise<Product[]> {
           try {
             return typeof row.reviews === 'string' ? JSON.parse(row.reviews) : (row.reviews || []);
           } catch (e) {
-            console.error(`[DB] Erro ao parsear reviews para o produto ${row.id}:`, e);
             return [];
           }
         })(),
       };
     });
+
+    console.log(`[DB] Encontrados ${dbRows.length} produtos no Postgres.`);
 
     const dbProductMap = new Map();
     
@@ -144,13 +142,14 @@ export async function getProductsFromDb(): Promise<Product[]> {
     dbRows.forEach(p => {
       dbProductMap.set(p.id, p);
     });
-    
-    const allProducts = Array.from(dbProductMap.values());
+
+    const finalProducts = Array.from(dbProductMap.values());
     
     // Sincroniza memória global para este processo
-    globalForDb.dbProducts = allProducts;
-    
-    return allProducts;
+    globalForDb.dbProducts = finalProducts;
+
+    console.log(`[DB] Total de produtos após mesclagem: ${finalProducts.length}`);
+    return finalProducts;
   } catch (error) {
     console.error("[DB] Erro ao buscar produtos do Postgres:", error);
     return currentDbProducts;
@@ -319,8 +318,8 @@ export async function saveProductToDb(product: Product) {
   }
 
   if (!pool) {
-    console.warn("[DB] Sem pool. Produto salvo apenas em memória temporária.");
-    return;
+    console.error("[DB] ERRO CRÍTICO: Tentativa de salvar produto sem conexão com o banco (pool is null). Verifique POSTGRES_URL.");
+    throw new Error("Conexão com o banco de dados não disponível. O produto não foi salvo.");
   }
 
   try {
@@ -370,10 +369,16 @@ export async function saveProductToDb(product: Product) {
       JSON.stringify(product.reviews || [])
     ];
 
-    await pool.query(query, values);
-    console.log(`[DB] Produto ${product.id} salvo com sucesso no Postgres.`);
-  } catch (error) {
-    console.error("[DB] Erro fatal ao salvar no Postgres:", error);
+    const result = await pool.query(query, values);
+    console.log(`[DB] Produto ${product.id} salvo com sucesso no Postgres. Linhas afetadas: ${result.rowCount}`);
+  } catch (error: any) {
+    console.error("[DB] Erro fatal ao salvar no Postgres:", {
+      error: error.message,
+      code: error.code,
+      detail: error.detail,
+      table: error.table,
+      constraint: error.constraint
+    });
     throw error;
   }
 }
