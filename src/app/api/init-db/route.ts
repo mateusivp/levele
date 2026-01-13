@@ -4,6 +4,7 @@ import pool from "@/lib/db_connection";
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  console.log("[INIT-DB] Request received at " + new Date().toISOString());
   if (!pool) {
     return NextResponse.json({ 
       error: "POSTGRES_URL não configurada no ambiente.",
