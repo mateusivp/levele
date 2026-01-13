@@ -159,20 +159,28 @@ export async function getProductsFromDb(): Promise<Product[]> {
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   if (!slug) return null;
+  console.log(`[DB] Buscando produto por slug: "${slug}"`);
   const currentDbProducts = getDbProducts();
   
   if (pool) {
     try {
-      const { rows } = await pool.query('SELECT * FROM products WHERE slug = $1', [slug]);
+      const { rows } = await pool.query('SELECT * FROM products WHERE LOWER(slug) = LOWER($1)', [slug]);
       if (rows.length > 0) {
         const row = rows[0];
+        console.log(`[DB] Produto encontrado no Postgres por slug: "${slug}" (ID: ${row.id})`);
         return {
           id: String(row.id),
           name: String(row.name || ""),
           description: String(row.description || ""),
           price: Number(row.price || 0),
           image: String(row.image || ""),
-          images: typeof row.images === 'string' ? JSON.parse(row.images) : (row.images || []),
+          images: (() => {
+            try {
+              return typeof row.images === 'string' ? JSON.parse(row.images) : (row.images || []);
+            } catch (e) {
+              return [];
+            }
+          })(),
           videoUrl: row.video_url || "",
           slug: String(row.slug || ""),
           category: String(row.category || "Geral"),
@@ -213,6 +221,8 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
             }
           })(),
         };
+      } else {
+        console.warn(`[DB] Produto não encontrado no Postgres por slug: "${slug}"`);
       }
     } catch (error) {
       console.error("[DB] Erro ao buscar produto por slug:", error);
