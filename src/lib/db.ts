@@ -12,11 +12,58 @@ const globalForDb = global as unknown as {
   dbVisits: number | undefined;
 };
 
+// Inicialização segura das variáveis globais no Singleton
+if (!globalForDb.dbProducts) {
+  globalForDb.dbProducts = products.map((product, pIdx) => ({
+    ...product,
+    active: true,
+    reviews: [
+      {
+        id: `${pIdx + 1}-1`,
+        userName: "Ricardo S.",
+        rating: 5,
+        date: "2024-05-15T10:00:00.000Z",
+        comment: "Simplesmente fantástico! O produto superou todas as minhas expectativas. A entrega foi super rápida e o atendimento excelente.",
+        status: 'aprovada'
+      },
+      {
+        id: `${pIdx + 1}-2`,
+        userName: "Mariana Costa",
+        rating: 5,
+        date: "2024-05-10T14:30:00.000Z",
+        comment: "Excelente custo-benefício. Recomendo muito para quem busca qualidade e confiança. O pague na entrega facilita demais a vida!",
+        status: 'aprovada'
+      },
+      {
+        id: `${pIdx + 1}-3`,
+        userName: "Felipe Almeida",
+        rating: 4,
+        date: "2024-05-05T09:15:00.000Z",
+        comment: "Produto de ótima qualidade. Chegou dentro do prazo e bem embalado. Recomendo.",
+        status: 'aprovada'
+      }
+    ] as Product['reviews']
+  }));
+}
+if (!globalForDb.dbOrders) globalForDb.dbOrders = [];
+if (!globalForDb.dbCoupons) globalForDb.dbCoupons = [];
+if (!globalForDb.dbAbandonedCarts) globalForDb.dbAbandonedCarts = [];
+if (!globalForDb.dbCategories) globalForDb.dbCategories = [];
+if (globalForDb.dbVisits === undefined) globalForDb.dbVisits = 0;
+
+// Atalhos para acesso interno (sempre usam o valor atual do Singleton)
+const getDbProducts = () => globalForDb.dbProducts || products;
+const getDbOrders = () => globalForDb.dbOrders || [];
+const getDbCategories = () => globalForDb.dbCategories || [];
+const getDbCoupons = () => globalForDb.dbCoupons || [];
+const getDbAbandonedCarts = () => globalForDb.dbAbandonedCarts || [];
+
 // Funções para lidar com Vercel Postgres
 export async function getProductsFromDb(): Promise<Product[]> {
+  const currentDbProducts = getDbProducts();
   if (!pool) {
     console.warn("Conexão com Postgres não configurada para busca de produtos. Retornando dados em memória.");
-    return dbProducts;
+    return currentDbProducts;
   }
   
   try {
@@ -58,7 +105,7 @@ export async function getProductsFromDb(): Promise<Product[]> {
     const dbProductMap = new Map();
     
     // Adicionamos primeiro o que está em memória (estáticos + novos da sessão)
-    dbProducts.forEach(p => {
+    currentDbProducts.forEach(p => {
       dbProductMap.set(p.id, p);
     });
 
@@ -69,7 +116,7 @@ export async function getProductsFromDb(): Promise<Product[]> {
     
     const allProducts = Array.from(dbProductMap.values());
     console.log(`[DB] IDs carregados do Banco: ${dbRows.map(p => p.id).join(', ')}`);
-    console.log(`[DB] Total de produtos carregados: ${allProducts.length} (Banco: ${dbRows.length}, Memória: ${dbProducts.length})`);
+    console.log(`[DB] Total de produtos carregados: ${allProducts.length} (Banco: ${dbRows.length}, Memória: ${currentDbProducts.length})`);
     
     // Sincroniza memória global
     globalForDb.dbProducts = allProducts;
@@ -77,20 +124,21 @@ export async function getProductsFromDb(): Promise<Product[]> {
     return allProducts;
   } catch (error) {
     console.error("Erro ao buscar produtos do Postgres:", error);
-    return dbProducts;
+    return currentDbProducts;
   }
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
+  const currentDbProducts = getDbProducts();
   if (!pool) {
-    return dbProducts.find(p => p.slug === slug) || null;
+    return currentDbProducts.find(p => p.slug === slug) || null;
   }
 
   try {
     const { rows } = await pool.query('SELECT * FROM products WHERE slug = $1', [slug]);
     if (rows.length === 0) {
       // Tentar na memória se não achar no banco (pode ser um produto estático)
-      return dbProducts.find(p => p.slug === slug) || null;
+      return currentDbProducts.find(p => p.slug === slug) || null;
     }
 
     const row = rows[0];
@@ -125,19 +173,20 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
     };
   } catch (error) {
     console.error("Erro ao buscar produto por slug no Postgres:", error);
-    return dbProducts.find(p => p.slug === slug) || null;
+    return currentDbProducts.find(p => p.slug === slug) || null;
   }
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
+  const currentDbProducts = getDbProducts();
   if (!pool) {
-    return dbProducts.find(p => p.id === id) || null;
+    return currentDbProducts.find(p => p.id === id) || null;
   }
 
   try {
     const { rows } = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
     if (rows.length === 0) {
-      return dbProducts.find(p => p.id === id) || null;
+      return currentDbProducts.find(p => p.id === id) || null;
     }
 
     const row = rows[0];
@@ -172,7 +221,7 @@ export async function getProductById(id: string): Promise<Product | null> {
     };
   } catch (error) {
     console.error("Erro ao buscar produto por ID no Postgres:", error);
-    return dbProducts.find(p => p.id === id) || null;
+    return currentDbProducts.find(p => p.id === id) || null;
   }
 }
 
@@ -480,7 +529,7 @@ export async function getCategoriesFromDb(): Promise<Category[]> {
   }
 
   // 2. Aplicar categorias da memória por cima (Fonte da verdade da sessão/hot-reload)
-  const currentCategories = globalForDb.dbCategories || dbCategories;
+  const currentCategories = getDbCategories();
   currentCategories.forEach(cat => {
     categoriesMap.set(cat.id, cat);
   });
@@ -721,59 +770,12 @@ export async function deleteCategoryFromDb(id: string) {
   }
 }
 
-export const dbOrders: Order[] = globalForDb.dbOrders ?? [];
-if (!globalForDb.dbOrders) {
-  globalForDb.dbOrders = dbOrders;
-}
-export const dbCategories: Category[] = globalForDb.dbCategories ?? [
-  // Deixando vazio ou com o mínimo para ser preenchido pelo banco/produtos
-  // "Acessórios" e outras virão do banco ou serão detectadas automaticamente
-];
-
-if (!globalForDb.dbCategories) {
-  globalForDb.dbCategories = dbCategories;
-}
-export const dbAbandonedCarts = globalForDb.dbAbandonedCarts ?? [];
-export const dbProducts: Product[] = globalForDb.dbProducts ?? products.map((product, pIdx) => ({
-  ...product,
-  active: true,
-  reviews: [
-    {
-      id: `${pIdx + 1}-1`,
-      userName: "Ricardo S.",
-      rating: 5,
-      date: "2024-05-15T10:00:00.000Z",
-      comment: "Simplesmente fantástico! O produto superou todas as minhas expectativas. A entrega foi super rápida e o atendimento excelente.",
-      status: 'aprovada'
-    },
-    {
-      id: `${pIdx + 1}-2`,
-      userName: "Mariana Costa",
-      rating: 5,
-      date: "2024-05-10T14:30:00.000Z",
-      comment: "Excelente custo-benefício. Recomendo muito para quem busca qualidade e confiança. O pague na entrega facilita demais a vida!",
-      status: 'aprovada'
-    },
-    {
-      id: `${pIdx + 1}-3`,
-      userName: "Felipe Almeida",
-      rating: 4,
-      date: "2024-05-05T09:15:00.000Z",
-      comment: "Produto de ótima qualidade. Chegou dentro do prazo e bem embalado. Recomendo.",
-      status: 'aprovada'
-    }
-  ] as Product['reviews']
-}));
-
-if (!globalForDb.dbProducts) {
-  globalForDb.dbProducts = dbProducts;
-}
-
-export const dbCoupons: Coupon[] = globalForDb.dbCoupons ?? [];
-
-if (!globalForDb.dbCoupons) {
-  globalForDb.dbCoupons = dbCoupons;
-}
+export const dbOrders: Order[] = globalForDb.dbOrders!;
+export const dbCategories: Category[] = globalForDb.dbCategories!;
+export const dbAbandonedCarts = globalForDb.dbAbandonedCarts!;
+export const dbProducts: Product[] = globalForDb.dbProducts!;
+export const dbCoupons: Coupon[] = globalForDb.dbCoupons!;
+export const dbVisits: number = globalForDb.dbVisits!;
 
 export async function getCouponsFromDb(): Promise<Coupon[]> {
   if (!pool) {

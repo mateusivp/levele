@@ -40,6 +40,28 @@ export async function GET() {
       )
     `);
 
+    // Inserir produtos iniciais se a tabela estiver vazia
+    const productCountResult = await pool.query('SELECT COUNT(*) FROM products');
+    if (parseInt(productCountResult.rows[0].count) === 0) {
+      console.log("[INIT-DB] Inserindo produtos iniciais...");
+      const { products: initialProducts } = await import("@/data/products");
+      for (const p of initialProducts) {
+        await pool.query(
+          `INSERT INTO products (id, name, description, price, image, images, video_url, slug, category, active, seo_title, seo_description, variations, reviews)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+           ON CONFLICT (id) DO NOTHING`,
+          [
+            p.id, p.name, p.description, p.price, p.image, 
+            JSON.stringify(p.images || []), p.videoUrl || "", 
+            p.slug, p.category || "Geral", p.active !== false,
+            p.seo?.title || p.name, p.seo?.description || p.description,
+            JSON.stringify(p.variations || []), JSON.stringify(p.reviews || [])
+          ]
+        );
+      }
+      console.log("[INIT-DB] Produtos iniciais inseridos.");
+    }
+
     // Tabela de Pedidos
     await pool.query(`
       CREATE TABLE IF NOT EXISTS orders (
